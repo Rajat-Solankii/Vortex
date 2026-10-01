@@ -2,9 +2,11 @@ package com.example.data.repository
 
 import com.example.data.local.WatchHistoryDao
 import com.example.data.local.WatchHistoryEntity
+import com.example.data.model.EpisodeItem
 import com.example.data.model.MediaDetail
 import com.example.data.model.MediaItem
 import com.example.data.model.MediaType
+import com.example.data.model.SeasonItem
 import com.example.data.model.toDomain
 import com.example.data.remote.VortexApiService
 import kotlinx.coroutines.Dispatchers
@@ -195,8 +197,36 @@ class VortexRepository(
             val dto = apiService.getTvDetails(path = "tv/$id")
             val posterFull = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${dto.posterPath}" else ""
             val backdropFull = if (!dto.backdropPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w780${dto.backdropPath}" else posterFull
-            val seasonsText = dto.numberOfSeasons?.let { "$it Seasons" } ?: "TV Series"
+            val seasonsCount = dto.numberOfSeasons ?: dto.seasons?.count { it.seasonNumber > 0 } ?: 1
+            val seasonsText = "$seasonsCount Seasons"
             val genreNames = dto.genres?.map { it.name } ?: emptyList()
+
+            val parsedSeasons = dto.seasons
+                ?.filter { it.seasonNumber > 0 }
+                ?.map { s ->
+                    val seasonPoster = if (!s.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${s.posterPath}" else posterFull
+                    SeasonItem(
+                        id = s.id,
+                        name = s.name?.takeIf { it.isNotBlank() } ?: "Season ${s.seasonNumber}",
+                        seasonNumber = s.seasonNumber,
+                        episodeCount = s.episodeCount ?: 10,
+                        posterUrl = seasonPoster
+                    )
+                } ?: emptyList()
+
+            val finalSeasons = if (parsedSeasons.isNotEmpty()) {
+                parsedSeasons
+            } else {
+                (1..seasonsCount).map { seasonNum ->
+                    SeasonItem(
+                        id = seasonNum,
+                        name = "Season $seasonNum",
+                        seasonNumber = seasonNum,
+                        episodeCount = 10,
+                        posterUrl = posterFull
+                    )
+                }
+            }
 
             MediaDetail(
                 id = dto.id,
@@ -211,10 +241,20 @@ class VortexRepository(
                 tagline = dto.tagline ?: "",
                 genres = genreNames,
                 rawPosterPath = dto.posterPath,
-                rawBackdropPath = dto.backdropPath
+                rawBackdropPath = dto.backdropPath,
+                seasons = finalSeasons
             )
         }.recoverCatching {
             val item = getCuratedFallback().find { it.id == id }
+            val fallbackSeasons = (1..3).map { s ->
+                SeasonItem(
+                    id = s,
+                    name = "Season $s",
+                    seasonNumber = s,
+                    episodeCount = 10,
+                    posterUrl = item?.posterUrl ?: ""
+                )
+            }
             MediaDetail(
                 id = id,
                 title = item?.title ?: "Neon Genesis Chronos",
@@ -226,7 +266,52 @@ class VortexRepository(
                 releaseDate = item?.releaseDate ?: "2024",
                 durationOrSeasons = "3 Seasons",
                 tagline = "Time bends to no one.",
-                genres = listOf("Animation", "Sci-Fi", "Mystery")
+                genres = listOf("Animation", "Sci-Fi", "Mystery"),
+                seasons = fallbackSeasons
+            )
+        }
+    }
+
+    suspend fun getSeasonEpisodes(tvId: Int, seasonNumber: Int): Result<List<EpisodeItem>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val dto = apiService.getSeasonDetails(path = "tv/$tvId/season/$seasonNumber")
+            val episodes = dto.episodes?.map { ep ->
+                val stillFull = if (!ep.stillPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${ep.stillPath}" else ""
+                EpisodeItem(
+                    id = ep.id,
+                    name = ep.name?.takeIf { it.isNotBlank() } ?: "Episode ${ep.episodeNumber}",
+                    overview = ep.overview ?: "",
+                    episodeNumber = ep.episodeNumber,
+                    seasonNumber = ep.seasonNumber,
+                    stillUrl = stillFull,
+                    rating = ep.voteAverage ?: 0.0,
+                    airDate = ep.airDate ?: "",
+                    runtime = ep.runtime
+                )
+            } ?: emptyList()
+
+            if (episodes.isNotEmpty()) {
+                episodes
+            } else {
+                generateFallbackEpisodes(tvId, seasonNumber, 10)
+            }
+        }.recoverCatching {
+            generateFallbackEpisodes(tvId, seasonNumber, 10)
+        }
+    }
+
+    private fun generateFallbackEpisodes(tvId: Int, seasonNumber: Int, count: Int): List<EpisodeItem> {
+        return (1..count).map { epNum ->
+            EpisodeItem(
+                id = tvId * 1000 + seasonNumber * 100 + epNum,
+                name = "Episode $epNum",
+                overview = "Episode $epNum of Season $seasonNumber.",
+                episodeNumber = epNum,
+                seasonNumber = seasonNumber,
+                stillUrl = "",
+                rating = 8.0,
+                airDate = "",
+                runtime = 45
             )
         }
     }

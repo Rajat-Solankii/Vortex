@@ -1,8 +1,11 @@
 package com.example.ui.screens.details
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,11 +49,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.data.model.EpisodeItem
 import com.example.data.model.MediaDetail
 import com.example.data.model.MediaType
 import com.example.ui.theme.VortexCyan
@@ -58,6 +63,7 @@ import com.example.ui.theme.VortexDarkBackground
 import com.example.ui.theme.VortexDarkCard
 import com.example.ui.theme.VortexDarkCardBorder
 import com.example.ui.theme.VortexDarkSurface
+import com.example.ui.theme.VortexDarkSurfaceVariant
 import com.example.ui.theme.VortexGold
 import com.example.ui.theme.VortexPurple
 import com.example.ui.theme.VortexPurpleDeep
@@ -74,7 +80,7 @@ fun DetailsScreen(
     mediaType: MediaType,
     viewModel: DetailsViewModel,
     onBack: () -> Unit,
-    onPlay: (MediaDetail) -> Unit,
+    onPlay: (MediaDetail, Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LaunchedEffect(mediaId, mediaType) {
@@ -131,19 +137,20 @@ fun DetailsScreen(
 
             is DetailsUiState.Success -> {
                 val detail = uiState.detail
-                val scrollState = rememberScrollState()
+                val seasonState = uiState.seasonState
 
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState)
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    // Top Backdrop Hero Box
+                    // Hero Backdrop & Poster Header Box
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(350.dp)
+                            .height(340.dp)
                     ) {
+                        // Backdrop
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(detail.backdropUrl.ifEmpty { detail.posterUrl })
@@ -154,7 +161,7 @@ fun DetailsScreen(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Deep atmospheric scrim fading to True Black
+                        // Vignette Gradients
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -163,79 +170,105 @@ fun DetailsScreen(
                                         colors = listOf(
                                             Color.Black.copy(alpha = 0.5f),
                                             Color.Transparent,
-                                            VortexDarkBackground.copy(alpha = 0.7f),
+                                            VortexDarkBackground.copy(alpha = 0.85f),
                                             VortexDarkBackground
                                         )
                                     )
                                 )
                         )
 
-                        // Top bar inside backdrop
+                        // Back Button (Top Left)
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .statusBarsPadding()
+                                .padding(8.dp)
+                                .size(40.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .testTag("details_back_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+
+                        // Floating Poster Card (Bottom Left)
                         Row(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .statusBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .align(Alignment.BottomStart)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.Bottom
                         ) {
                             Surface(
-                                shape = CircleShape,
-                                color = Color.Black.copy(alpha = 0.6f),
-                                modifier = Modifier.size(44.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                shadowElevation = 10.dp,
+                                modifier = Modifier
+                                    .width(100.dp)
+                                    .height(150.dp)
+                                    .border(1.dp, VortexPurple.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                             ) {
-                                IconButton(
-                                    onClick = onBack,
-                                    modifier = Modifier.testTag("details_back_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back",
-                                        tint = Color.White
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(detail.posterUrl.ifEmpty { detail.backdropUrl })
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = detail.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            // Header Text info
+                            Column(modifier = Modifier.weight(1f)) {
+                                if (detail.tagline.isNotEmpty()) {
+                                    Text(
+                                        text = detail.tagline.uppercase(),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = VortexPurpleLight,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp,
+                                            fontSize = 10.sp
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
+                                    Spacer(modifier = Modifier.height(4.dp))
                                 }
+
+                                Text(
+                                    text = detail.title,
+                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = VortexTextPrimary,
+                                        fontSize = 22.sp
+                                    ),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
 
-                    // Content Details Section
+                    // Content Details Body
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
+                            .padding(horizontal = 16.dp)
                     ) {
-                        // Title
-                        Text(
-                            text = detail.title,
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                color = VortexTextPrimary,
-                                fontSize = 28.sp
-                            )
-                        )
-
-                        if (detail.tagline.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "“${detail.tagline}”",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = VortexPurpleLight,
-                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                                )
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Metadata Row
+                        // Badges Row: Rating, Year, Duration/Seasons, Quality
                         Row(
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             if (detail.rating > 0) {
                                 Surface(
                                     color = VortexDarkCard,
                                     shape = RoundedCornerShape(6.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, VortexGold.copy(alpha = 0.4f))
+                                    border = BorderStroke(1.dp, VortexDarkCardBorder)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -306,7 +339,7 @@ fun DetailsScreen(
                                     Surface(
                                         color = VortexDarkCard,
                                         shape = RoundedCornerShape(20.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, VortexDarkCardBorder)
+                                        border = BorderStroke(1.dp, VortexDarkCardBorder)
                                     ) {
                                         Text(
                                             text = genre,
@@ -324,7 +357,10 @@ fun DetailsScreen(
 
                         // PROMINENT PLAY BUTTON
                         Button(
-                            onClick = { onPlay(detail) },
+                            onClick = {
+                                val s = if (detail.mediaType == MediaType.TV) seasonState.selectedSeasonNumber else 1
+                                onPlay(detail, s, 1)
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = VortexPurple),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
@@ -340,7 +376,7 @@ fun DetailsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "PLAY STREAM",
+                                text = if (detail.mediaType == MediaType.TV) "WATCH SEASON ${seasonState.selectedSeasonNumber} EP 1" else "PLAY STREAM",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = 1.sp,
@@ -350,6 +386,79 @@ fun DetailsScreen(
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
+
+                        // REAL SEASONS & EPISODES LIST (For TV Shows)
+                        if (detail.mediaType == MediaType.TV && detail.seasons.isNotEmpty()) {
+                            Text(
+                                text = "SEASONS & EPISODES",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp,
+                                    color = VortexTextMuted
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Horizontal Season Selector Tabs
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                detail.seasons.forEach { season ->
+                                    val isSelected = season.seasonNumber == seasonState.selectedSeasonNumber
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) VortexPurple else VortexDarkCard,
+                                        border = if (!isSelected) BorderStroke(1.dp, VortexDarkCardBorder) else null,
+                                        modifier = Modifier.clickable {
+                                            viewModel.selectSeason(detail.id, season.seasonNumber)
+                                        }
+                                    ) {
+                                        Text(
+                                            text = season.name,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) Color.White else VortexTextSecondary
+                                            ),
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Episodes List
+                            if (seasonState.isLoadingEpisodes) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(100.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = VortexPurple,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    seasonState.episodes.forEach { episode ->
+                                        EpisodeCard(
+                                            episode = episode,
+                                            onClick = {
+                                                onPlay(detail, seasonState.selectedSeasonNumber, episode.episodeNumber)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+                        }
 
                         // Overview Section
                         Text(
@@ -377,7 +486,7 @@ fun DetailsScreen(
                         Surface(
                             color = VortexDarkCard,
                             shape = RoundedCornerShape(14.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, VortexPurple.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.dp, VortexPurple.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -410,6 +519,104 @@ fun DetailsScreen(
 
                         Spacer(modifier = Modifier.height(40.dp))
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeCard(
+    episode: EpisodeItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = VortexDarkCard,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, VortexDarkCardBorder),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Episode Thumbnail with Play Overlay
+            Box(
+                modifier = Modifier
+                    .width(110.dp)
+                    .height(65.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(VortexDarkSurfaceVariant)
+            ) {
+                if (episode.stillUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(episode.stillUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = episode.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = VortexPurple.copy(alpha = 0.9f),
+                        modifier = Modifier.size(26.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play",
+                            tint = Color.White,
+                            modifier = Modifier.padding(4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${episode.episodeNumber}. ${episode.name}",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = VortexTextPrimary
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (episode.overview.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = episode.overview,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = VortexTextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        ),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (episode.runtime != null && episode.runtime > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${episode.runtime}m",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = VortexPurpleLight,
+                            fontSize = 10.sp
+                        )
+                    )
                 }
             }
         }

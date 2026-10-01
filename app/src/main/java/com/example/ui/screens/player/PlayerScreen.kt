@@ -17,6 +17,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -75,8 +76,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.example.data.model.EpisodeItem
 import com.example.data.model.MediaItem
 import com.example.data.model.MediaType
+import com.example.data.model.SeasonItem
 import com.example.data.repository.VortexRepository
 import com.example.ui.components.MediaCarousel
 import com.example.ui.theme.VortexCyan
@@ -107,6 +110,8 @@ fun PlayerScreen(
     title: String,
     posterPath: String?,
     backdropPath: String?,
+    initialSeason: Int = 1,
+    initialEpisode: Int = 1,
     repository: VortexRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -122,8 +127,8 @@ fun PlayerScreen(
     var currentBackdrop by remember(backdropPath) { mutableStateOf(backdropPath) }
 
     var selectedServer by remember { mutableStateOf(StreamServer.SERVER1) }
-    var selectedSeason by remember { mutableIntStateOf(1) }
-    var selectedEpisode by remember { mutableIntStateOf(1) }
+    var selectedSeason by remember(initialSeason) { mutableIntStateOf(initialSeason) }
+    var selectedEpisode by remember(initialEpisode) { mutableIntStateOf(initialEpisode) }
     var reloadKey by remember { mutableIntStateOf(0) }
     var blockedAdsCount by remember { mutableIntStateOf(0) }
     var isFullscreen by remember { mutableStateOf(false) }
@@ -131,6 +136,33 @@ fun PlayerScreen(
     // Recommendations state based on the current playing movie/show
     var recommendations by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var isLoadingRecommendations by remember { mutableStateOf(false) }
+
+    // Real TV Season and Episode data fetched from TMDB
+    var tvSeasons by remember { mutableStateOf<List<SeasonItem>>(emptyList()) }
+    var tvEpisodes by remember { mutableStateOf<List<EpisodeItem>>(emptyList()) }
+    var isLoadingEpisodes by remember { mutableStateOf(false) }
+
+    // Fetch TV seasons when media opens
+    LaunchedEffect(currentMediaId, currentMediaType) {
+        if (currentMediaType == MediaType.TV) {
+            val detailResult = repository.getTvDetails(currentMediaId)
+            detailResult.onSuccess { detail ->
+                if (detail.seasons.isNotEmpty()) {
+                    tvSeasons = detail.seasons
+                }
+            }
+        }
+    }
+
+    // Fetch TV episodes for currently selected season
+    LaunchedEffect(currentMediaId, currentMediaType, selectedSeason) {
+        if (currentMediaType == MediaType.TV) {
+            isLoadingEpisodes = true
+            val epResult = repository.getSeasonEpisodes(currentMediaId, selectedSeason)
+            tvEpisodes = epResult.getOrDefault(emptyList())
+            isLoadingEpisodes = false
+        }
+    }
 
     // Synchronize landscape orientation and immersive system bars with isFullscreen state
     LaunchedEffect(isFullscreen) {
@@ -434,41 +466,50 @@ fun PlayerScreen(
 
                 // TV Season and Episode Selector if TV show
                 if (currentMediaType == MediaType.TV) {
-                    Text(
-                        text = "SEASONS & EPISODES",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp,
-                            color = VortexTextMuted
-                        )
-                    )
+                    val seasonsList = if (tvSeasons.isNotEmpty()) {
+                        tvSeasons
+                    } else {
+                        (1..4).map { SeasonItem(it, "Season $it", it, 10, "") }
+                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    val episodesList = if (tvEpisodes.isNotEmpty()) {
+                        tvEpisodes
+                    } else {
+                        (1..10).map { EpisodeItem(it, "Episode $it", "", it, selectedSeason, "", 8.0, "") }
+                    }
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        (1..4).forEach { season ->
+                        Text(
+                            text = "SEASONS & EPISODES",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.2.sp,
+                                color = VortexTextMuted
+                            )
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        val nextEp = episodesList.firstOrNull { it.episodeNumber == selectedEpisode + 1 }
+                        if (nextEp != null) {
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (selectedSeason == season) VortexPurple.copy(alpha = 0.3f) else VortexDarkCard,
-                                border = if (selectedSeason == season) androidx.compose.foundation.BorderStroke(1.dp, VortexPurple) else null,
+                                shape = RoundedCornerShape(6.dp),
+                                color = VortexPurple.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, VortexPurple.copy(alpha = 0.5f)),
                                 modifier = Modifier.clickable {
-                                    if (selectedSeason != season) {
-                                        selectedSeason = season
-                                        selectedEpisode = 1
-                                        reloadKey++
-                                    }
+                                    selectedEpisode = nextEp.episodeNumber
+                                    reloadKey++
                                 }
                             ) {
                                 Text(
-                                    text = "Season $season",
-                                    color = if (selectedSeason == season) VortexPurpleLight else VortexTextSecondary,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    text = "Next: Ep ${nextEp.episodeNumber} ›",
+                                    color = VortexPurpleLight,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
                         }
@@ -476,29 +517,78 @@ fun PlayerScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // Horizontal Season Chips
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        (1..8).forEach { ep ->
+                        seasonsList.forEach { season ->
+                            val isSelected = selectedSeason == season.seasonNumber
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (selectedEpisode == ep) VortexPurple else VortexDarkCard,
+                                color = if (isSelected) VortexPurple else VortexDarkCard,
+                                border = if (!isSelected) BorderStroke(1.dp, VortexDarkCardBorder) else null,
                                 modifier = Modifier.clickable {
-                                    if (selectedEpisode != ep) {
-                                        selectedEpisode = ep
+                                    if (selectedSeason != season.seasonNumber) {
+                                        selectedSeason = season.seasonNumber
+                                        selectedEpisode = 1
                                         reloadKey++
                                     }
                                 }
                             ) {
                                 Text(
-                                    text = "Ep $ep",
-                                    color = if (selectedEpisode == ep) Color.White else VortexTextSecondary,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    text = season.name,
+                                    color = if (isSelected) Color.White else VortexTextSecondary,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Horizontal Episode Chips with real episode numbers
+                    if (isLoadingEpisodes) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = VortexPurple, modifier = Modifier.size(20.dp))
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            episodesList.forEach { ep ->
+                                val isSelected = selectedEpisode == ep.episodeNumber
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) VortexPurple else VortexDarkCard,
+                                    border = if (!isSelected) BorderStroke(1.dp, VortexDarkCardBorder) else null,
+                                    modifier = Modifier.clickable {
+                                        if (selectedEpisode != ep.episodeNumber) {
+                                            selectedEpisode = ep.episodeNumber
+                                            reloadKey++
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        text = "Ep ${ep.episodeNumber}",
+                                        color = if (isSelected) Color.White else VortexTextSecondary,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    )
+                                }
                             }
                         }
                     }

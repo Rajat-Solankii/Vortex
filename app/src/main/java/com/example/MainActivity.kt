@@ -70,7 +70,9 @@ sealed interface Screen {
         val mediaType: MediaType,
         val title: String,
         val posterPath: String?,
-        val backdropPath: String?
+        val backdropPath: String?,
+        val initialSeason: Int = 1,
+        val initialEpisode: Int = 1
     ) : Screen
 }
 
@@ -242,7 +244,9 @@ fun VortexApp(appContainer: AppContainer) {
                                 mediaType = if (historyItem.mediaType == "tv") MediaType.TV else MediaType.MOVIE,
                                 title = historyItem.title,
                                 posterPath = historyItem.posterPath,
-                                backdropPath = historyItem.backdropPath
+                                backdropPath = historyItem.backdropPath,
+                                initialSeason = historyItem.seasonNumber ?: 1,
+                                initialEpisode = historyItem.episodeNumber ?: 1
                             )
                         },
                         onBack = {
@@ -276,13 +280,15 @@ fun VortexApp(appContainer: AppContainer) {
                                 BottomNavTab.HISTORY -> Screen.History
                             }
                         },
-                        onPlay = { detail ->
+                        onPlay = { detail, season, episode ->
                             currentScreen = Screen.Player(
                                 mediaId = detail.id,
                                 mediaType = detail.mediaType,
                                 title = detail.title,
                                 posterPath = detail.rawPosterPath,
-                                backdropPath = detail.rawBackdropPath
+                                backdropPath = detail.rawBackdropPath,
+                                initialSeason = season,
+                                initialEpisode = episode
                             )
                         }
                     )
@@ -295,6 +301,8 @@ fun VortexApp(appContainer: AppContainer) {
                         title = screen.title,
                         posterPath = screen.posterPath,
                         backdropPath = screen.backdropPath,
+                        initialSeason = screen.initialSeason,
+                        initialEpisode = screen.initialEpisode,
                         repository = repository,
                         onBack = {
                             currentScreen = Screen.Details(

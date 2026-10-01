@@ -2,6 +2,7 @@ package com.example.data.remote
 
 import com.example.data.model.MediaItemDto
 import com.example.data.model.MovieDetailsDto
+import com.example.data.model.SeasonDetailsDto
 import com.example.data.model.TmdbResponse
 import com.example.data.model.TvDetailsDto
 import retrofit2.http.GET
@@ -35,6 +36,12 @@ interface VortexApiService {
         @Query("path") path: String,
         @QueryMap extraQueries: Map<String, String> = emptyMap()
     ): TvDetailsDto
+
+    @GET("api/tmdb")
+    suspend fun getSeasonDetails(
+        @Query("path") path: String,
+        @QueryMap extraQueries: Map<String, String> = emptyMap()
+    ): SeasonDetailsDto
 
     @GET("api/tmdb")
     suspend fun search(
