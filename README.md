@@ -1,11 +1,20 @@
-<div align="center">
+# Vortex
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Vortex is a native Android movie and TV streaming client built with Kotlin and Jetpack Compose.
 
-  <h1>Built with AI Studio</h2>
+## Features
+- **120 FPS High Refresh Rate Support**: Ultra-smooth scrolling, GPU zero-copy hardware bitmaps, downsampled image caching.
+- **Dynamic Recommendation Carousel**: Featured movie recommendations in an auto-sliding format.
+- **Categorized Streaming**: Anime, Bollywood, Cartoons, Drama, Hollywood, Movies, and TV Shows.
+- **Multi-Server Playback**: Embed routing across multiple video sources with built-in AdBlocker shield protection.
+- **Watch History & Resume**: Local persistence powered by Room database.
+- **Telegram Monitoring & Feedback**: Telemetry launch analytics and in-app feedback bot directly to Telegram.
+- **Remote Update Checking**: Automated GitHub update verification and blacklist ban security.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
-
-  <a href="https://aistudio.google.com/apps">Start building</a>
-
-</div>
+## Tech Stack
+- **Language**: Kotlin
+- **UI Toolkit**: Jetpack Compose & Material Design 3
+- **Image Loading**: Coil with hardware acceleration & memory caching
+- **Database**: Room Database
+- **Networking**: Retrofit, OkHttp, Moshi
+- **Video Engine**: ExoPlayer & Media3 WebView embed integration
