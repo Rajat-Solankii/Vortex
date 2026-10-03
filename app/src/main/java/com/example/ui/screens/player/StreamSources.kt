@@ -3,13 +3,13 @@ package com.example.ui.screens.player
 import com.example.data.model.MediaType
 
 enum class StreamServer(val displayName: String, val description: String, val isRecommendedForAnime: Boolean = false) {
-    SERVER1("Server 1 (nxsha)", "nxsha", false),
-    SERVER2("Server 2 (rozgarlelo)", "rozgarlelo", true),
-    SERVER3("Server 3 (primesrc)", "primesrc", false),
-    SERVER4("Server 4 (ythd)", "ythd", false),
-    SERVER5("Server 5 (vixsrc)", "vixsrc", false),
-    SERVER6("Server 6 (vidcore)", "vidcore", false),
-    SERVER7("Server 7 (vidrock)", "vidrock", false)
+    SERVER1("Server 1", "Server 1", false),
+    SERVER2("Server 2", "Server 2", true),
+    SERVER3("Server 3", "Server 3", false),
+    SERVER4("Server 4", "Server 4", false),
+    SERVER5("Server 5", "Server 5", false),
+    SERVER6("Server 6", "Server 6", false),
+    SERVER7("Server 7", "Server 7", false)
 }
 
 object StreamUrlBuilder {

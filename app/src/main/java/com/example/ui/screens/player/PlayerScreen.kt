@@ -224,7 +224,16 @@ fun PlayerScreen(
         
         if (currentMediaType == MediaType.TV) {
             val seasonsResult = repository.getTvSeasons(currentMediaId)
-            tvSeasons = seasonsResult.getOrDefault(emptyList())
+            val dtos = seasonsResult.getOrDefault(emptyList())
+            tvSeasons = dtos.map { dto ->
+                SeasonItem(
+                    id = dto.id,
+                    name = dto.name ?: "Season ${dto.seasonNumber}",
+                    seasonNumber = dto.seasonNumber,
+                    episodeCount = dto.episodeCount ?: 0,
+                    posterUrl = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${dto.posterPath}" else ""
+                )
+            }
         }
     }
 
@@ -443,7 +452,7 @@ fun PlayerScreen(
                             },
                             label = {
                                 Text(
-                                    text = if (server.isRecommendedForAnime) "${server.displayName} ⭐ Anime" else server.displayName,
+                                    text = if (server.isRecommendedForAnime) "${server.displayName} (Anime Recommended)" else server.displayName,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isSelected) Color.White else VortexTextSecondary
                                 )
