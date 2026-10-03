@@ -46,6 +46,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -145,10 +148,21 @@ fun DetailsScreen(
                 val detail = uiState.detail
                 val seasonState = uiState.seasonState
 
+                var visibleEpisodesCount by remember(seasonState.selectedSeasonNumber) { mutableIntStateOf(10) }
+                val scrollState = rememberScrollState()
+
+                LaunchedEffect(scrollState.value) {
+                    if (scrollState.value >= scrollState.maxValue - 500 && scrollState.maxValue > 0) {
+                        if (visibleEpisodesCount < seasonState.episodes.size) {
+                            visibleEpisodesCount += 10
+                        }
+                    }
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(scrollState)
                 ) {
                     // Hero Backdrop & Poster Header Box
                     Box(
@@ -506,7 +520,7 @@ fun DetailsScreen(
                                 }
                             } else {
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    seasonState.episodes.forEach { episode ->
+                                    seasonState.episodes.take(visibleEpisodesCount).forEach { episode ->
                                         EpisodeCard(
                                             episode = episode,
                                             onClick = {
