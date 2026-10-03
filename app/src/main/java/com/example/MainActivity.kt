@@ -156,7 +156,7 @@ fun VortexApp(appContainer: AppContainer) {
         }
     }
 
-    androidx.compose.activity.compose.BackHandler(enabled = backStack.size > 1) {
+    androidx.activity.compose.BackHandler(enabled = backStack.size > 1) {
         navigateBack()
     }
 
