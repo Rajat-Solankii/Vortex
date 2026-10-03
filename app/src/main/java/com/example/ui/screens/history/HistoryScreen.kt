@@ -201,8 +201,8 @@ fun HistoryScreen(
                                     .background(Color.Black)
                             ) {
                                 val imageSource = when {
-                                    !item.backdropPath.isNullOrBlank() -> "https://image.tmdb.org/t/p/w780${item.backdropPath}"
-                                    !item.posterPath.isNullOrBlank() -> "https://image.tmdb.org/t/p/w500${item.posterPath}"
+                                    !item.backdropPath.isNullOrBlank() -> "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getBackdropQuality()}${item.backdropPath}"
+                                    !item.posterPath.isNullOrBlank() -> "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}${item.posterPath}"
                                     else -> ""
                                 }
 

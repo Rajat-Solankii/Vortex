@@ -146,7 +146,7 @@ fun BookmarksScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color.Black)
                             ) {
-                                val imageSource = if (!item.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${item.posterPath}" else ""
+                                val imageSource = if (!item.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}${item.posterPath}" else ""
 
                                 if (imageSource.isNotEmpty()) {
                                     AsyncImage(

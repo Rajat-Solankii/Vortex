@@ -231,7 +231,7 @@ fun PlayerScreen(
                     name = dto.name ?: "Season ${dto.seasonNumber}",
                     seasonNumber = dto.seasonNumber,
                     episodeCount = dto.episodeCount ?: 0,
-                    posterUrl = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${dto.posterPath}" else ""
+                    posterUrl = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}${dto.posterPath}" else ""
                 )
             }
         }

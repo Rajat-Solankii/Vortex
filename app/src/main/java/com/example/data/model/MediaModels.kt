@@ -178,10 +178,10 @@ fun MediaItemDto.toDomain(fallbackType: MediaType = MediaType.MOVIE): MediaItem 
     val displayTitle = title ?: name ?: "Untitled"
     val displayDate = releaseDate ?: firstAirDate ?: ""
     val posterFull = if (!posterPath.isNullOrBlank()) {
-        "https://image.tmdb.org/t/p/w500$posterPath"
+        "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}$posterPath"
     } else ""
     val backdropFull = if (!backdropPath.isNullOrBlank()) {
-        "https://image.tmdb.org/t/p/w780$backdropPath"
+        "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getBackdropQuality()}$backdropPath"
     } else posterFull
 
     return MediaItem(

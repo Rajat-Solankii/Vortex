@@ -364,8 +364,8 @@ class VortexRepository(
     suspend fun getMovieDetails(id: Int): Result<MediaDetail> = withContext(Dispatchers.IO) {
         runCatching {
             val dto = apiService.getMovieDetails(path = "movie/$id")
-            val posterFull = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${dto.posterPath}" else ""
-            val backdropFull = if (!dto.backdropPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w780${dto.backdropPath}" else posterFull
+            val posterFull = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}${dto.posterPath}" else ""
+            val backdropFull = if (!dto.backdropPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getBackdropQuality()}${dto.backdropPath}" else posterFull
             val durationText = dto.runtime?.let { "${it / 60}h ${it % 60}m" } ?: "Movie"
             val genreNames = dto.genres?.map { it.name } ?: emptyList()
 
@@ -405,8 +405,8 @@ class VortexRepository(
     suspend fun getTvDetails(id: Int): Result<MediaDetail> = withContext(Dispatchers.IO) {
         runCatching {
             val dto = apiService.getTvDetails(path = "tv/$id")
-            val posterFull = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${dto.posterPath}" else ""
-            val backdropFull = if (!dto.backdropPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w780${dto.backdropPath}" else posterFull
+            val posterFull = if (!dto.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}${dto.posterPath}" else ""
+            val backdropFull = if (!dto.backdropPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getBackdropQuality()}${dto.backdropPath}" else posterFull
             val seasonsCount = dto.numberOfSeasons ?: dto.seasons?.count { it.seasonNumber > 0 } ?: 1
             val seasonsText = "$seasonsCount Seasons"
             val genreNames = dto.genres?.map { it.name } ?: emptyList()
@@ -414,7 +414,7 @@ class VortexRepository(
             val parsedSeasons = dto.seasons
                 ?.filter { it.seasonNumber > 0 }
                 ?.map { s ->
-                    val seasonPoster = if (!s.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${s.posterPath}" else posterFull
+                    val seasonPoster = if (!s.posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}${s.posterPath}" else posterFull
                     SeasonItem(
                         id = s.id,
                         name = s.name?.takeIf { it.isNotBlank() } ?: "Season ${s.seasonNumber}",
@@ -486,7 +486,7 @@ class VortexRepository(
         runCatching {
             val dto = apiService.getSeasonDetails(path = "tv/$tvId/season/$seasonNumber")
             val episodes = dto.episodes?.map { ep ->
-                val stillFull = if (!ep.stillPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500${ep.stillPath}" else ""
+                val stillFull = if (!ep.stillPath.isNullOrBlank()) "https://image.tmdb.org/t/p/${com.example.util.DeviceConfigHelper.getPosterQuality()}${ep.stillPath}" else ""
                 EpisodeItem(
                     id = ep.id,
                     name = ep.name?.takeIf { it.isNotBlank() } ?: "Episode ${ep.episodeNumber}",

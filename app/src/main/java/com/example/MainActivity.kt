@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.example.util.DeviceConfigHelper.initialize(applicationContext)
         SupabaseService.client.handleDeeplinks(intent)
         appContainer = AppContainer(applicationContext)
 
