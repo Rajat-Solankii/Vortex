@@ -95,6 +95,12 @@ fun LoginScreen(
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
         ) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_google),
+                contentDescription = "Google Logo",
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text("Continue with Google", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
@@ -158,49 +164,26 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                if (email.isBlank() || password.isBlank()) {
-                    Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
-                isLoading = true
-                scope.launch {
-                    try {
-                        val userEmail = email
-                        val userPassword = password
-                        SupabaseService.client.auth.signInWith(Email) {
-                            this.email = userEmail
-                            this.password = userPassword
-                        }
-                        onLoginSuccess()
-                    } catch (e: Exception) {
-                        Toast.makeText(context, e.message ?: "Authentication failed", Toast.LENGTH_LONG).show()
-                    } finally {
-                        isLoading = false
-                    }
-                }
+                Toast.makeText(context, "Email sign in is coming soon!", Toast.LENGTH_SHORT).show()
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VortexPurple),
-            enabled = !isLoading
+            enabled = true
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(color = VortexTextPrimary, modifier = Modifier.size(24.dp))
-            } else {
-                Text(
-                    text = "Sign In",
-                    color = VortexTextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Text(
+                text = "Coming Soon",
+                color = VortexTextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
 
-        TextButton(onClick = { /* Keep placeholder for sign up later */ }) {
+        TextButton(onClick = { /* Keep placeholder for sign up later, does nothing as requested */ }) {
             Text(
-                text = "Don't have an account? Sign up",
+                text = "Don't have an account? Coming Soon",
                 color = VortexPurpleLight
             )
         }
