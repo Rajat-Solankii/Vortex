@@ -141,7 +141,25 @@ fun VortexApp(appContainer: AppContainer) {
     val detailsViewModel: DetailsViewModel = viewModel(factory = factory)
     val bookmarksViewModel: BookmarksViewModel = viewModel(factory = factory)
 
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+    val backStack = remember { androidx.compose.runtime.mutableStateListOf<Screen>(Screen.Home) }
+    val currentScreen = backStack.lastOrNull() ?: Screen.Home
+
+    fun navigateTo(screen: Screen) {
+        if (backStack.lastOrNull() != screen) {
+            backStack.add(screen)
+        }
+    }
+
+    fun navigateBack() {
+        if (backStack.size > 1) {
+            backStack.removeLast()
+        }
+    }
+
+    androidx.compose.activity.compose.BackHandler(enabled = backStack.size > 1) {
+        navigateBack()
+    }
+
     var selectedTab by remember { mutableStateOf(BottomNavTab.HOME) }
     var isDeviceBlocked by remember { mutableStateOf(false) }
     val deviceId = remember { TelegramService.getDeviceId(context) }
@@ -165,13 +183,7 @@ fun VortexApp(appContainer: AppContainer) {
         if (sessionStatus is SessionStatus.Authenticated) {
             repository.refreshWatchHistory()
             if (currentScreen is Screen.Login) {
-                currentScreen = when (selectedTab) {
-                    BottomNavTab.HOME -> Screen.Home
-                    BottomNavTab.SEARCH -> Screen.Search
-                    BottomNavTab.HISTORY -> Screen.History
-                    BottomNavTab.BOOKMARKS -> Screen.Bookmarks
-                    BottomNavTab.PROFILE -> Screen.Settings
-                }
+                navigateBack()
             }
         }
     }
@@ -202,13 +214,15 @@ fun VortexApp(appContainer: AppContainer) {
                             selected = isSelected,
                             onClick = {
                                 selectedTab = tab
-                                currentScreen = when (tab) {
+                                val rootScreen = when (tab) {
                                     BottomNavTab.HOME -> Screen.Home
                                     BottomNavTab.SEARCH -> Screen.Search
                                     BottomNavTab.HISTORY -> Screen.History
                                     BottomNavTab.BOOKMARKS -> Screen.Bookmarks
                                     BottomNavTab.PROFILE -> Screen.Settings
                                 }
+                                backStack.clear()
+                                backStack.add(rootScreen)
                             },
                             icon = {
                                 Icon(
@@ -240,11 +254,10 @@ fun VortexApp(appContainer: AppContainer) {
                 is Screen.Login -> {
                     com.example.ui.screens.login.LoginScreen(
                         onLoginSuccess = {
-                            currentScreen = Screen.History
+                            navigateBack()
                         },
                         onBack = {
-                            selectedTab = BottomNavTab.HOME
-                            currentScreen = Screen.Home
+                            navigateBack()
                         }
                     )
                 }
@@ -253,25 +266,25 @@ fun VortexApp(appContainer: AppContainer) {
                     HomeScreen(
                         viewModel = homeViewModel,
                         onMediaClick = { media ->
-                            currentScreen = Screen.Details(media.id, media.mediaType)
+                            navigateTo(Screen.Details(media.id, media.mediaType))
                         },
                         onWatchHistoryClick = { historyItem ->
-                            currentScreen = Screen.Player(
+                            navigateTo(Screen.Player(
                                 mediaId = historyItem.id,
                                 mediaType = if (historyItem.mediaType == "tv") MediaType.TV else MediaType.MOVIE,
                                 title = historyItem.title,
                                 posterPath = historyItem.posterPath,
                                 backdropPath = historyItem.backdropPath
-                            )
+                            ))
                         },
                         onCategoryViewAllClick = { category ->
-                            currentScreen = Screen.CategoryFeed(category)
+                            navigateTo(Screen.CategoryFeed(category))
                         },
                         onProviderClick = { providerId, providerName ->
-                            currentScreen = Screen.ProviderFeed(providerId, providerName)
+                            navigateTo(Screen.ProviderFeed(providerId, providerName))
                         },
                         onAllProvidersClick = {
-                            currentScreen = Screen.AllProviders
+                            navigateTo(Screen.AllProviders)
                         }
                     )
                 }
@@ -280,18 +293,18 @@ fun VortexApp(appContainer: AppContainer) {
                     com.example.ui.screens.home.AllProvidersScreen(
                         providers = homeViewModel.feedState.value.providers,
                         onProviderClick = { id, name ->
-                            currentScreen = Screen.ProviderFeed(id, name)
+                            navigateTo(Screen.ProviderFeed(id, name))
                         },
-                        onBackClick = { currentScreen = Screen.Home }
+                        onBackClick = { navigateBack() }
                     )
                 }
 
                 is Screen.CategoryFeed -> {
                     com.example.ui.screens.home.CategoryPagingScreen(
                         category = screen.category,
-                        onBackClick = { currentScreen = Screen.Home },
+                        onBackClick = { navigateBack() },
                         onMediaClick = { media ->
-                            currentScreen = Screen.Details(media.id, media.mediaType)
+                            navigateTo(Screen.Details(media.id, media.mediaType))
                         },
                         appContainer = appContainer
                     )
@@ -301,9 +314,9 @@ fun VortexApp(appContainer: AppContainer) {
                     com.example.ui.screens.home.ProviderPagingScreen(
                         providerId = screen.providerId,
                         providerName = screen.providerName,
-                        onBackClick = { currentScreen = Screen.Home },
+                        onBackClick = { navigateBack() },
                         onMediaClick = { media ->
-                            currentScreen = Screen.Details(media.id, media.mediaType)
+                            navigateTo(Screen.Details(media.id, media.mediaType))
                         },
                         appContainer = appContainer
                     )
@@ -313,11 +326,10 @@ fun VortexApp(appContainer: AppContainer) {
                     SearchScreen(
                         repository = repository,
                         onMediaClick = { media ->
-                            currentScreen = Screen.Details(media.id, media.mediaType)
+                            navigateTo(Screen.Details(media.id, media.mediaType))
                         },
                         onBack = {
-                            selectedTab = BottomNavTab.HOME
-                            currentScreen = Screen.Home
+                            navigateBack()
                         }
                     )
                 }
@@ -326,7 +338,7 @@ fun VortexApp(appContainer: AppContainer) {
                     HistoryScreen(
                         repository = repository,
                         onPlayHistoryItem = { historyItem ->
-                            currentScreen = Screen.Player(
+                            navigateTo(Screen.Player(
                                 mediaId = historyItem.id,
                                 mediaType = if (historyItem.mediaType == "tv") MediaType.TV else MediaType.MOVIE,
                                 title = historyItem.title,
@@ -334,11 +346,10 @@ fun VortexApp(appContainer: AppContainer) {
                                 backdropPath = historyItem.backdropPath,
                                 initialSeason = historyItem.seasonNumber ?: 1,
                                 initialEpisode = historyItem.episodeNumber ?: 1
-                            )
+                            ))
                         },
                         onBack = {
-                            selectedTab = BottomNavTab.HOME
-                            currentScreen = Screen.Home
+                            navigateBack()
                         }
                     )
                 }
@@ -347,11 +358,10 @@ fun VortexApp(appContainer: AppContainer) {
                         viewModel = bookmarksViewModel,
                         onPlayBookmark = { bookmark ->
                             val mediaType = if (bookmark.mediaType == "tv") MediaType.TV else MediaType.MOVIE
-                            currentScreen = Screen.Details(bookmark.mediaId.toInt(), mediaType)
+                            navigateTo(Screen.Details(bookmark.mediaId.toInt(), mediaType))
                         },
                         onBack = {
-                            selectedTab = BottomNavTab.HOME
-                            currentScreen = Screen.Home
+                            navigateBack()
                         }
                     )
                 }
@@ -360,20 +370,15 @@ fun VortexApp(appContainer: AppContainer) {
                     com.example.ui.screens.settings.SettingsScreen(
                         repository = repository,
                         onBack = {
-                            currentScreen = when (selectedTab) {
-                                BottomNavTab.HOME -> Screen.Home
-                                BottomNavTab.SEARCH -> Screen.Search
-                                BottomNavTab.HISTORY -> Screen.History
-                                BottomNavTab.BOOKMARKS -> Screen.Bookmarks
-                                BottomNavTab.PROFILE -> Screen.Settings
-                            }
+                            navigateBack()
                         },
                         onLogoutSuccess = {
-                            currentScreen = Screen.Home
+                            backStack.clear()
+                            backStack.add(Screen.Home)
                             selectedTab = BottomNavTab.HOME
                         },
                         onLoginClick = {
-                            currentScreen = Screen.Login
+                            navigateTo(Screen.Login)
                         }
                     )
                 }
@@ -384,16 +389,10 @@ fun VortexApp(appContainer: AppContainer) {
                         mediaType = screen.mediaType,
                         viewModel = detailsViewModel,
                         onBack = {
-                            currentScreen = when (selectedTab) {
-                                BottomNavTab.HOME -> Screen.Home
-                                BottomNavTab.SEARCH -> Screen.Search
-                                BottomNavTab.HISTORY -> Screen.History
-                                BottomNavTab.BOOKMARKS -> Screen.Bookmarks
-                                BottomNavTab.PROFILE -> Screen.Settings
-                            }
+                            navigateBack()
                         },
                         onPlay = { detail, season, episode ->
-                            currentScreen = Screen.Player(
+                            navigateTo(Screen.Player(
                                 mediaId = detail.id,
                                 mediaType = detail.mediaType,
                                 title = detail.title,
@@ -401,7 +400,7 @@ fun VortexApp(appContainer: AppContainer) {
                                 backdropPath = detail.rawBackdropPath,
                                 initialSeason = season,
                                 initialEpisode = episode
-                            )
+                            ))
                         }
                     )
                 }
@@ -417,10 +416,7 @@ fun VortexApp(appContainer: AppContainer) {
                         initialEpisode = screen.initialEpisode,
                         repository = repository,
                         onBack = {
-                            currentScreen = Screen.Details(
-                                mediaId = screen.mediaId,
-                                mediaType = screen.mediaType
-                            )
+                            navigateBack()
                         }
                     )
                 }
