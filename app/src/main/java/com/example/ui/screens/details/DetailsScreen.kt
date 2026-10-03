@@ -1,5 +1,8 @@
 package com.example.ui.screens.details
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -29,6 +32,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -250,6 +256,24 @@ fun DetailsScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
+                            
+                            val isBookmarked by viewModel.isBookmarked.collectAsStateWithLifecycle()
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.6f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                IconButton(
+                                    onClick = { viewModel.toggleBookmark(detail) },
+                                    modifier = Modifier.testTag("details_bookmark_button")
+                                ) {
+                                    Icon(
+                                        imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                        contentDescription = "Bookmark",
+                                        tint = if (isBookmarked) VortexPurpleLight else Color.White
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -377,6 +401,42 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (detail.mediaType == MediaType.TV) "WATCH SEASON ${seasonState.selectedSeasonNumber} EP 1" else "PLAY STREAM",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 1.sp,
+                                    color = Color.White
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // DOWNLOAD BUTTON
+                        val context = LocalContext.current
+                        Button(
+                            onClick = {
+                                openDownloadLink(
+                                    context = context,
+                                    mediaId = detail.id,
+                                    mediaType = mediaType
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = VortexDarkCard),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, VortexPurple.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Download",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "DOWNLOAD",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = 1.sp,
@@ -619,6 +679,28 @@ private fun EpisodeCard(
                     )
                 }
             }
+        }
+    }
+}
+
+fun openDownloadLink(context: Context, mediaId: Int, mediaType: MediaType) {
+    val typeString = if (mediaType == MediaType.MOVIE) "movie" else "tv"
+    val url = "https://moviesdl.cc/p/info.html?id=$mediaId&type=$typeString"
+    
+    try {
+        val customTabsIntent = androidx.browser.customtabs.CustomTabsIntent.Builder()
+            .setShowTitle(true)
+            .build()
+        customTabsIntent.launchUrl(context, Uri.parse(url))
+    } catch (e: Exception) {
+        // Fallback to standard browser if Chrome Custom Tabs fail or aren't supported
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(intent)
+        } catch (ex: Exception) {
+            // Handle edge cases where no browser is installed at all
+            ex.printStackTrace()
         }
     }
 }

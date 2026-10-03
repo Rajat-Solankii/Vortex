@@ -5,10 +5,22 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [WatchHistoryEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [
+        WatchHistoryEntity::class,
+        BookmarkEntity::class,
+        CachedHomeItem::class,
+        CachedProvider::class
+    ],
+    version = 3,
+    exportSchema = false
+)
 abstract class VortexDatabase : RoomDatabase() {
 
     abstract fun watchHistoryDao(): WatchHistoryDao
+    abstract fun bookmarkDao(): BookmarkDao
+    abstract fun cachedHomeItemDao(): CachedHomeItemDao
+    abstract fun cachedProviderDao(): CachedProviderDao
 
     companion object {
         @Volatile

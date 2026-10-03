@@ -1,5 +1,6 @@
 package com.example.ui.screens.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -32,12 +33,17 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,14 +72,15 @@ import com.example.ui.theme.VortexTextMuted
 import com.example.ui.theme.VortexTextPrimary
 import com.example.ui.theme.VortexTextSecondary
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
     onMediaClick: (MediaItem) -> Unit,
     onWatchHistoryClick: (WatchHistoryEntity) -> Unit,
-    onSearchClick: () -> Unit,
-    onHistoryScreenClick: () -> Unit,
-    onSettingsClick: () -> Unit,
+    onCategoryViewAllClick: (HomeCategory) -> Unit,
+    onProviderClick: (Int, String) -> Unit,
+    onAllProvidersClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val feedState by viewModel.feedState.collectAsStateWithLifecycle()
@@ -86,12 +93,7 @@ fun HomeScreen(
             .statusBarsPadding()
     ) {
         // 1. Vortex Top Header Bar (Pinned to the very top)
-        TopVortexAppBar(
-            onSearchClick = onSearchClick,
-            onHistoryScreenClick = onHistoryScreenClick,
-            onSettingsClick = onSettingsClick,
-            onRefreshClick = { viewModel.loadHomeFeed() }
-        )
+        TopVortexAppBar()
 
         // 2. Horizontal Categories Navigation Bar directly below the header
         CategoryNavigationBar(
@@ -100,28 +102,33 @@ fun HomeScreen(
         )
 
         // 3. Main Content
-        if (feedState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(
-                        color = VortexPurple,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Loading Vortex Stream...",
-                        style = MaterialTheme.typography.bodyMedium.copy(color = VortexPurpleLight)
-                    )
+        PullToRefreshBox(
+            isRefreshing = feedState.isLoading,
+            onRefresh = { viewModel.loadHomeFeed() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (feedState.isLoading && feedState.recommendedSliders.isEmpty() && feedState.anime.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            color = VortexPurple,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Loading Vortex Stream...",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = VortexPurpleLight)
+                        )
+                    }
                 }
-            }
-        } else if (feedState.selectedCategory == HomeCategory.ALL) {
-            // Full Home Feed with Dynamic Recommendation Slider & Category Carousels
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
+            } else if (feedState.selectedCategory == HomeCategory.ALL) {
+                // Full Home Feed with Dynamic Recommendation Slider & Category Carousels
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
                 // Top Movie Recommendations in Slider Format
                 val sliderItems = feedState.recommendedSliders.ifEmpty {
                     listOfNotNull(feedState.featuredHero)
@@ -210,12 +217,100 @@ fun HomeScreen(
                     }
                 }
 
+                // Streaming Providers
+                if (feedState.providers.isNotEmpty()) {
+                    item(key = "providers_row") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                            ) {
+                                // Accent indicator bar
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .height(18.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(VortexCyan)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                    text = "Streaming Providers",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = VortexTextPrimary
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.weight(1f))
+
+                                Text(
+                                    text = "View All",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        color = VortexCyan,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    modifier = Modifier
+                                        .clickable { onAllProvidersClick() }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(
+                                    items = feedState.providers,
+                                    key = { it.providerId }
+                                ) { provider ->
+                                    val imageUrl = if (!provider.logoPath.isNullOrBlank()) {
+                                        "https://image.tmdb.org/t/p/w200${provider.logoPath}"
+                                    } else ""
+
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.width(70.dp).clickable { onProviderClick(provider.providerId, provider.providerName) }
+                                    ) {
+                                        coil.compose.AsyncImage(
+                                            model = imageUrl,
+                                            contentDescription = provider.providerName,
+                                            modifier = Modifier
+                                                .size(60.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(VortexDarkSurface),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = provider.providerName,
+                                            style = MaterialTheme.typography.labelSmall.copy(color = VortexTextSecondary),
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Category: Anime
                 item(key = "cat_anime") {
                     MediaCarousel(
                         title = "Anime",
                         items = feedState.anime,
                         onItemClick = onMediaClick,
+                        onViewAllClick = { onCategoryViewAllClick(HomeCategory.ANIME) },
                         accentColor = VortexPurple
                     )
                 }
@@ -226,6 +321,7 @@ fun HomeScreen(
                         title = "Bollywood",
                         items = feedState.bollywood,
                         onItemClick = onMediaClick,
+                        onViewAllClick = { onCategoryViewAllClick(HomeCategory.BOLLYWOOD) },
                         accentColor = VortexGold
                     )
                 }
@@ -236,6 +332,7 @@ fun HomeScreen(
                         title = "Cartoons",
                         items = feedState.cartoons,
                         onItemClick = onMediaClick,
+                        onViewAllClick = { onCategoryViewAllClick(HomeCategory.CARTOONS) },
                         accentColor = VortexCyan
                     )
                 }
@@ -246,6 +343,7 @@ fun HomeScreen(
                         title = "Drama",
                         items = feedState.drama,
                         onItemClick = onMediaClick,
+                        onViewAllClick = { onCategoryViewAllClick(HomeCategory.DRAMA) },
                         accentColor = VortexPink
                     )
                 }
@@ -256,6 +354,7 @@ fun HomeScreen(
                         title = "Hollywood",
                         items = feedState.hollywood,
                         onItemClick = onMediaClick,
+                        onViewAllClick = { onCategoryViewAllClick(HomeCategory.HOLLYWOOD) },
                         accentColor = VortexPurpleLight
                     )
                 }
@@ -266,6 +365,7 @@ fun HomeScreen(
                         title = "Movies",
                         items = feedState.movies,
                         onItemClick = onMediaClick,
+                        onViewAllClick = { onCategoryViewAllClick(HomeCategory.MOVIES) },
                         accentColor = VortexGold
                     )
                 }
@@ -276,6 +376,7 @@ fun HomeScreen(
                         title = "TV Shows",
                         items = feedState.tvShows,
                         onItemClick = onMediaClick,
+                        onViewAllClick = { onCategoryViewAllClick(HomeCategory.TV_SHOWS) },
                         accentColor = VortexCyan
                     )
                 }
@@ -285,66 +386,16 @@ fun HomeScreen(
                 }
             }
         } else {
-            // Filtered Category Grid View
-            val itemsForCategory = when (feedState.selectedCategory) {
-                HomeCategory.ANIME -> feedState.anime
-                HomeCategory.BOLLYWOOD -> feedState.bollywood
-                HomeCategory.CARTOONS -> feedState.cartoons
-                HomeCategory.DRAMA -> feedState.drama
-                HomeCategory.HOLLYWOOD -> feedState.hollywood
-                HomeCategory.MOVIES -> feedState.movies
-                HomeCategory.TV_SHOWS -> feedState.tvShows
-                HomeCategory.ALL -> emptyList()
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = feedState.selectedCategory.title,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = VortexTextPrimary
-                        )
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "${itemsForCategory.size} titles",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = VortexPurpleLight
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 120.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = PaddingValues(bottom = 90.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(
-                        items = itemsForCategory,
-                        key = { "${it.id}_${it.mediaType}" }
-                    ) { media ->
-                        MediaPosterCard(
-                            media = media,
-                            onClick = { onMediaClick(media) }
-                        )
-                    }
+            // Trigger View All when selecting from category tab instead of in-place load
+            LaunchedEffect(feedState.selectedCategory) {
+                if (feedState.selectedCategory != HomeCategory.ALL) {
+                    onCategoryViewAllClick(feedState.selectedCategory)
+                    viewModel.selectCategory(HomeCategory.ALL) // Reset back to All so when user returns, it shows home
                 }
             }
         }
     }
+}
 }
 
 /**
@@ -352,10 +403,6 @@ fun HomeScreen(
  */
 @Composable
 fun TopVortexAppBar(
-    onSearchClick: () -> Unit,
-    onHistoryScreenClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onRefreshClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -370,21 +417,11 @@ fun TopVortexAppBar(
         ) {
             // Brand Logo
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = VortexPurple,
-                    modifier = Modifier.size(30.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "V",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Black,
-                                color = Color.White
-                            )
-                        )
-                    }
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.vortex_logo),
+                    contentDescription = "Vortex Logo",
+                    modifier = Modifier.size(36.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "VORTEX",
@@ -397,54 +434,6 @@ fun TopVortexAppBar(
             }
 
             Spacer(modifier = Modifier.weight(1f))
-
-            // Search Icon
-            IconButton(
-                onClick = onSearchClick,
-                modifier = Modifier.testTag("home_search_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = Color.White
-                )
-            }
-
-            // Watch History Screen Icon
-            IconButton(
-                onClick = onHistoryScreenClick,
-                modifier = Modifier.testTag("home_history_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.History,
-                    contentDescription = "History",
-                    tint = Color.White
-                )
-            }
-
-            // Settings Screen Icon
-            IconButton(
-                onClick = onSettingsClick,
-                modifier = Modifier.testTag("home_settings_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White
-                )
-            }
-
-            // Refresh button
-            IconButton(
-                onClick = onRefreshClick,
-                modifier = Modifier.testTag("home_refresh_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Refresh Feed",
-                    tint = Color.White.copy(alpha = 0.85f)
-                )
-            }
         }
     }
 }

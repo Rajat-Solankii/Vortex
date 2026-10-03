@@ -9,127 +9,337 @@ import com.example.data.model.MediaType
 import com.example.data.model.SeasonItem
 import com.example.data.model.toDomain
 import com.example.data.remote.VortexApiService
+import com.example.data.model.Bookmark
+import com.example.data.remote.SupabaseService
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 class VortexRepository(
     private val apiService: VortexApiService,
-    private val watchHistoryDao: WatchHistoryDao
+    private val watchHistoryDao: WatchHistoryDao,
+    private val bookmarkDao: com.example.data.local.BookmarkDao,
+    private val cachedHomeItemDao: com.example.data.local.CachedHomeItemDao,
+    private val cachedProviderDao: com.example.data.local.CachedProviderDao
 ) {
 
-    val watchHistory: Flow<List<WatchHistoryEntity>> = watchHistoryDao.getAllWatchHistory()
+    private val _watchHistory = kotlinx.coroutines.flow.MutableStateFlow<List<WatchHistoryEntity>>(emptyList())
+    val watchHistory: Flow<List<WatchHistoryEntity>> = _watchHistory
 
-    suspend fun getTrending(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+    suspend fun refreshWatchHistory() = withContext(Dispatchers.IO) {
         runCatching {
-            val response = apiService.getMediaList(path = "trending/all/week", page = page)
-            val domainList = response.results.map { it.toDomain() }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallback().shuffled()
-        }.recoverCatching {
-            getCuratedFallback()
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user == null) {
+                _watchHistory.value = watchHistoryDao.getAllWatchHistoryList()
+                return@withContext
+            }
+            val profile = SupabaseService.client.postgrest["user_profiles"]
+                .select {
+                    filter { eq("user_id", user.id) }
+                }.decodeSingleOrNull<com.example.data.model.UserProfile>()
+            
+            val dtoList = profile?.watchHistory ?: emptyList()
+            val entities = dtoList.map { dto ->
+                WatchHistoryEntity(
+                    id = dto.id,
+                    title = dto.title ?: dto.name ?: "Unknown",
+                    posterPath = dto.posterPath,
+                    backdropPath = dto.backdropPath,
+                    mediaType = dto.mediaType,
+                    lastPositionMs = dto.lastPositionMs ?: 0L,
+                    durationMs = dto.durationMs ?: 0L,
+                    seasonNumber = dto.season,
+                    episodeNumber = dto.episode,
+                    lastWatchedTimestamp = dto.timestamp
+                )
+            }.sortedByDescending { it.lastWatchedTimestamp }
+            
+            _watchHistory.value = entities
+        }.onFailure {
+            it.printStackTrace()
+        }
+    }
+    suspend fun getTrending(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "trending",
+                path = "trending/all/week",
+                mediaType = MediaType.MOVIE,
+                extraQueries = emptyMap(),
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallback().shuffled() }
+            )
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(path = "trending/all/week", page = page)
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain() })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallback().shuffled()
+            }.recoverCatching {
+                getCuratedFallback()
+            }
         }
     }
 
     suspend fun getAnime(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = apiService.getMediaList(
+        val extra = mapOf("with_genres" to "16", "with_original_language" to "ja")
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "anime",
                 path = "discover/tv",
-                page = page,
-                includeAdult = false,
-                extraQueries = mapOf("with_genres" to "16", "with_original_language" to "ja")
+                mediaType = MediaType.TV,
+                extraQueries = extra,
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallbackAnime() }
             )
-            val domainList = response.results.map { it.toDomain(MediaType.TV) }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallbackAnime()
-        }.recoverCatching {
-            getCuratedFallbackAnime()
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(
+                    path = "discover/tv",
+                    page = page,
+                    includeAdult = false,
+                    extraQueries = extra
+                )
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.TV) })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallbackAnime()
+            }.recoverCatching {
+                getCuratedFallbackAnime()
+            }
         }
     }
 
     suspend fun getBollywood(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = apiService.getMediaList(
+        val extra = mapOf("with_original_language" to "hi", "sort_by" to "popularity.desc")
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "bollywood",
                 path = "discover/movie",
-                page = page,
-                includeAdult = false,
-                extraQueries = mapOf("with_original_language" to "hi", "sort_by" to "popularity.desc")
+                mediaType = MediaType.MOVIE,
+                extraQueries = extra,
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallbackBollywood() }
             )
-            val domainList = response.results.map { it.toDomain(MediaType.MOVIE) }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallbackBollywood()
-        }.recoverCatching {
-            getCuratedFallbackBollywood()
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(
+                    path = "discover/movie",
+                    page = page,
+                    includeAdult = false,
+                    extraQueries = extra
+                )
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.MOVIE) })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallbackBollywood()
+            }.recoverCatching {
+                getCuratedFallbackBollywood()
+            }
         }
     }
 
     suspend fun getCartoons(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = apiService.getMediaList(
+        val extra = mapOf("with_genres" to "16,10751", "sort_by" to "popularity.desc")
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "cartoons",
                 path = "discover/tv",
-                page = page,
-                includeAdult = false,
-                extraQueries = mapOf("with_genres" to "16,10751", "sort_by" to "popularity.desc")
+                mediaType = MediaType.TV,
+                extraQueries = extra,
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallbackCartoons() }
             )
-            val domainList = response.results.map { it.toDomain(MediaType.TV) }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallbackCartoons()
-        }.recoverCatching {
-            getCuratedFallbackCartoons()
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(
+                    path = "discover/tv",
+                    page = page,
+                    includeAdult = false,
+                    extraQueries = extra
+                )
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.TV) })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallbackCartoons()
+            }.recoverCatching {
+                getCuratedFallbackCartoons()
+            }
         }
     }
 
     suspend fun getDrama(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = apiService.getMediaList(
+        val extra = mapOf("with_genres" to "18", "sort_by" to "popularity.desc")
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "drama",
                 path = "discover/movie",
-                page = page,
-                includeAdult = false,
-                extraQueries = mapOf("with_genres" to "18", "sort_by" to "popularity.desc")
+                mediaType = MediaType.MOVIE,
+                extraQueries = extra,
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallbackDrama() }
             )
-            val domainList = response.results.map { it.toDomain(MediaType.MOVIE) }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallbackDrama()
-        }.recoverCatching {
-            getCuratedFallbackDrama()
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(
+                    path = "discover/movie",
+                    page = page,
+                    includeAdult = false,
+                    extraQueries = extra
+                )
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.MOVIE) })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallbackDrama()
+            }.recoverCatching {
+                getCuratedFallbackDrama()
+            }
         }
     }
 
     suspend fun getHollywood(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+        val extra = mapOf("with_original_language" to "en", "sort_by" to "popularity.desc")
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "hollywood",
+                path = "discover/movie",
+                mediaType = MediaType.MOVIE,
+                extraQueries = extra,
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallbackHollywood() }
+            )
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(
+                    path = "discover/movie",
+                    page = page,
+                    includeAdult = false,
+                    extraQueries = extra
+                )
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.MOVIE) })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallbackHollywood()
+            }.recoverCatching {
+                getCuratedFallbackHollywood()
+            }
+        }
+    }
+
+    suspend fun getMovies(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "movies",
+                path = "movie/popular",
+                mediaType = MediaType.MOVIE,
+                extraQueries = emptyMap(),
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallbackMovies() }
+            )
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(
+                    path = "movie/popular",
+                    page = page,
+                    includeAdult = false
+                )
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.MOVIE) })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallbackMovies()
+            }.recoverCatching {
+                getCuratedFallbackMovies()
+            }
+        }
+    }
+
+    suspend fun getProviders(): Result<List<com.example.data.model.ProviderDto>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val firstItem = cachedProviderDao.getFirstProvider()
+            val isStale = firstItem == null || (System.currentTimeMillis() - firstItem.updatedAt > 24 * 60 * 60 * 1000)
+
+            if (!isStale) {
+                val cached = cachedProviderDao.getAllProviders()
+                if (cached.isNotEmpty()) {
+                    return@runCatching cached.map {
+                        com.example.data.model.ProviderDto(
+                            providerId = it.providerId,
+                            providerName = it.providerName,
+                            logoPath = it.logoPath,
+                            displayPriority = it.displayPriority
+                        )
+                    }
+                }
+            }
+
+            val response = apiService.getProviders()
+            val domainList = response.results
+
+            if (domainList.isNotEmpty()) {
+                cachedProviderDao.clearAll()
+                val newEntities = domainList.map { item ->
+                    com.example.data.local.CachedProvider(
+                        providerId = item.providerId,
+                        providerName = item.providerName,
+                        logoPath = item.logoPath,
+                        displayPriority = item.displayPriority ?: 0
+                    )
+                }
+                cachedProviderDao.insertAll(newEntities)
+                domainList
+            } else {
+                emptyList()
+            }
+        }.recoverCatching {
+            val cached = cachedProviderDao.getAllProviders()
+            if (cached.isNotEmpty()) {
+                cached.map {
+                    com.example.data.model.ProviderDto(
+                        providerId = it.providerId,
+                        providerName = it.providerName,
+                        logoPath = it.logoPath,
+                        displayPriority = it.displayPriority
+                    )
+                }
+            } else {
+                emptyList()
+            }
+        }
+    }
+
+    suspend fun getMediaForProvider(providerId: Int, page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
         runCatching {
             val response = apiService.getMediaList(
                 path = "discover/movie",
                 page = page,
                 includeAdult = false,
-                extraQueries = mapOf("with_original_language" to "en", "sort_by" to "popularity.desc")
+                extraQueries = mapOf("with_watch_providers" to providerId.toString(), "watch_region" to "US", "sort_by" to "popularity.desc")
             )
-            val domainList = response.results.map { it.toDomain(MediaType.MOVIE) }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallbackHollywood()
+            ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.MOVIE) })
         }.recoverCatching {
-            getCuratedFallbackHollywood()
-        }
-    }
-
-    suspend fun getMovies(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = apiService.getMediaList(
-                path = "movie/popular",
-                page = page,
-                includeAdult = false
-            )
-            val domainList = response.results.map { it.toDomain(MediaType.MOVIE) }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallbackMovies()
-        }.recoverCatching {
-            getCuratedFallbackMovies()
+            emptyList()
         }
     }
 
     suspend fun getTvShows(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = apiService.getMediaList(
+        if (page == 1) {
+            getCachedHomeCategory(
+                category = "tvShows",
                 path = "tv/popular",
-                page = page,
-                includeAdult = false
+                mediaType = MediaType.TV,
+                extraQueries = emptyMap(),
+                cachedHomeItemDao = cachedHomeItemDao,
+                apiService = apiService,
+                fallback = { getCuratedFallbackTv() }
             )
-            val domainList = response.results.map { it.toDomain(MediaType.TV) }
-            if (domainList.isNotEmpty()) domainList else getCuratedFallbackTv()
-        }.recoverCatching {
-            getCuratedFallbackTv()
+        } else {
+            runCatching {
+                val response = apiService.getMediaList(
+                    path = "tv/popular",
+                    page = page,
+                    includeAdult = false
+                )
+                val domainList = ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.TV) })
+                if (domainList.isNotEmpty()) domainList else getCuratedFallbackTv()
+            }.recoverCatching {
+                getCuratedFallbackTv()
+            }
         }
     }
 
@@ -137,13 +347,13 @@ class VortexRepository(
         runCatching {
             val recPath = if (mediaType == MediaType.TV) "tv/$mediaId/recommendations" else "movie/$mediaId/recommendations"
             val response = apiService.getMediaList(path = recPath, page = 1)
-            val list = response.results.map { it.toDomain(mediaType) }
+            val list = ContentFilter.filterDomain(response.results.map { it.toDomain(mediaType) })
             if (list.isNotEmpty()) {
                 list
             } else {
                 val simPath = if (mediaType == MediaType.TV) "tv/$mediaId/similar" else "movie/$mediaId/similar"
                 val simResp = apiService.getMediaList(path = simPath, page = 1)
-                val simList = simResp.results.map { it.toDomain(mediaType) }
+                val simList = ContentFilter.filterDomain(simResp.results.map { it.toDomain(mediaType) })
                 if (simList.isNotEmpty()) simList else getCuratedFallback().filter { it.id != mediaId }
             }
         }.recoverCatching {
@@ -316,10 +526,18 @@ class VortexRepository(
         }
     }
 
+    suspend fun getTvSeasons(id: Int): Result<List<com.example.data.model.SeasonDto>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val dto = apiService.getTvDetails(path = "tv/$id")
+            val filteredSeasons = dto.seasons?.filter { it.seasonNumber > 0 } ?: emptyList()
+            filteredSeasons
+        }
+    }
+
     suspend fun search(query: String): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
         runCatching {
             val response = apiService.search(query = query)
-            response.results.map { it.toDomain() }
+            ContentFilter.filterDomain(response.results.map { it.toDomain() })
         }.recoverCatching {
             getCuratedFallback().filter {
                 it.title.contains(query, ignoreCase = true) || it.overview.contains(query, ignoreCase = true)
@@ -338,29 +556,189 @@ class VortexRepository(
         season: Int? = null,
         episode: Int? = null
     ) = withContext(Dispatchers.IO) {
-        val entity = WatchHistoryEntity(
-            id = id,
-            title = title,
-            posterPath = posterPath,
-            backdropPath = backdropPath,
-            mediaType = if (mediaType == MediaType.TV) "tv" else "movie",
-            lastPositionMs = positionMs,
-            durationMs = durationMs,
-            seasonNumber = season,
-            episodeNumber = episode,
-            lastWatchedTimestamp = System.currentTimeMillis()
-        )
-        watchHistoryDao.insertOrUpdate(entity)
+        runCatching {
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user == null) {
+                // Fallback to local if not logged in
+                val entity = WatchHistoryEntity(
+                    id = id,
+                    title = title,
+                    posterPath = posterPath,
+                    backdropPath = backdropPath,
+                    mediaType = if (mediaType == MediaType.TV) "tv" else "movie",
+                    lastPositionMs = positionMs,
+                    durationMs = durationMs,
+                    seasonNumber = season,
+                    episodeNumber = episode,
+                    lastWatchedTimestamp = System.currentTimeMillis()
+                )
+                watchHistoryDao.insertOrUpdate(entity)
+                return@withContext
+            }
+
+            // Get existing profile
+            val profile = SupabaseService.client.postgrest["user_profiles"]
+                .select { filter { eq("user_id", user.id) } }
+                .decodeSingleOrNull<com.example.data.model.UserProfile>()
+            
+            val currentHistory = profile?.watchHistory?.toMutableList() ?: mutableListOf()
+            
+            // Remove existing entry for this media if it exists
+            currentHistory.removeAll { it.id == id && it.mediaType == (if (mediaType == MediaType.TV) "tv" else "movie") }
+            
+            // Add new entry to the front
+            val newEntry = com.example.data.model.WatchHistoryDto(
+                id = id,
+                title = title,
+                name = title,
+                posterPath = posterPath,
+                backdropPath = backdropPath,
+                mediaType = if (mediaType == MediaType.TV) "tv" else "movie",
+                timestamp = System.currentTimeMillis(),
+                season = season,
+                episode = episode,
+                durationMs = durationMs,
+                lastPositionMs = positionMs
+            )
+            currentHistory.add(0, newEntry) // Add to top
+            
+            // Keep only latest 50 items to keep JSON small
+            val limitedHistory = currentHistory.take(50)
+            
+            if (profile == null) {
+                val newProfile = com.example.data.model.UserProfile(user.id, limitedHistory)
+                SupabaseService.client.postgrest["user_profiles"].insert(newProfile)
+            } else {
+                SupabaseService.client.postgrest["user_profiles"].update(
+                    { set("watch_history", limitedHistory) }
+                ) { filter { eq("user_id", user.id) } }
+            }
+            refreshWatchHistory()
+        }
     }
 
     suspend fun deleteWatchHistory(id: Int) = withContext(Dispatchers.IO) {
-        watchHistoryDao.deleteById(id)
+        runCatching {
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user == null) {
+                watchHistoryDao.deleteById(id)
+                return@withContext
+            }
+            
+            val profile = SupabaseService.client.postgrest["user_profiles"]
+                .select { filter { eq("user_id", user.id) } }
+                .decodeSingleOrNull<com.example.data.model.UserProfile>() ?: return@withContext
+                
+            val currentHistory = profile.watchHistory?.toMutableList() ?: return@withContext
+            val removed = currentHistory.removeAll { it.id == id }
+            
+            if (removed) {
+                SupabaseService.client.postgrest["user_profiles"].update(
+                    { set("watch_history", currentHistory) }
+                ) { filter { eq("user_id", user.id) } }
+                refreshWatchHistory()
+            }
+        }
     }
 
     suspend fun clearWatchHistory() = withContext(Dispatchers.IO) {
-        watchHistoryDao.clearAll()
+        runCatching {
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user == null) {
+                watchHistoryDao.clearAll()
+                return@withContext
+            }
+            
+            SupabaseService.client.postgrest["user_profiles"].update(
+                { set("watch_history", emptyList<com.example.data.model.WatchHistoryDto>()) }
+            ) { filter { eq("user_id", user.id) } }
+            refreshWatchHistory()
+        }
     }
 
+    suspend fun getBookmarks(): List<Bookmark> = withContext(Dispatchers.IO) {
+        runCatching {
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user == null) {
+                return@withContext bookmarkDao.getAllBookmarksList().map { entity ->
+                    Bookmark(
+                        id = null,
+                        userId = null,
+                        mediaId = entity.mediaId,
+                        mediaType = entity.mediaType,
+                        title = entity.title,
+                        posterPath = entity.posterPath,
+                        createdAt = null
+                    )
+                }
+            }
+            SupabaseService.client.postgrest["bookmarks"]
+                .select {
+                    filter {
+                        eq("user_id", user.id)
+                    }
+                }
+                .decodeList<Bookmark>()
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun addBookmark(bookmark: Bookmark): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user == null) {
+                bookmarkDao.insertOrUpdate(
+                    com.example.data.local.BookmarkEntity(
+                        mediaId = bookmark.mediaId,
+                        mediaType = bookmark.mediaType,
+                        title = bookmark.title,
+                        posterPath = bookmark.posterPath
+                    )
+                )
+                return@withContext true
+            }
+            val bookmarkWithUser = bookmark.copy(userId = user.id)
+            SupabaseService.client.postgrest["bookmarks"].insert(bookmarkWithUser)
+            true
+        }.getOrDefault(false)
+    }
+
+    suspend fun removeBookmark(mediaId: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user == null) {
+                bookmarkDao.deleteById(mediaId)
+                return@withContext true
+            }
+            SupabaseService.client.postgrest["bookmarks"].delete {
+                filter {
+                    eq("user_id", user.id)
+                    eq("media_id", mediaId)
+                }
+            }
+            true
+        }.getOrDefault(false)
+    }
+
+    suspend fun isBookmarked(mediaId: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user ?: return@withContext false
+            val result = SupabaseService.client.postgrest["bookmarks"]
+                .select {
+                    filter {
+                        eq("user_id", user.id)
+                        eq("media_id", mediaId)
+                    }
+                }.decodeList<Bookmark>()
+            result.isNotEmpty()
+        }.getOrDefault(false)
+    }
+
+    suspend fun clearLocalDataOnLogout() = withContext(Dispatchers.IO) {
+        watchHistoryDao.clearAll()
+        bookmarkDao.clearAll()
+        _watchHistory.value = emptyList()
+    }
+    
     // High fidelity curated fallback list
     private fun getCuratedFallback(): List<MediaItem> = listOf(
         MediaItem(

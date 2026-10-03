@@ -221,6 +221,11 @@ fun PlayerScreen(
         val recResult = repository.getRecommendations(currentMediaId, currentMediaType)
         recommendations = recResult.getOrDefault(emptyList())
         isLoadingRecommendations = false
+        
+        if (currentMediaType == MediaType.TV) {
+            val seasonsResult = repository.getTvSeasons(currentMediaId)
+            tvSeasons = seasonsResult.getOrDefault(emptyList())
+        }
     }
 
     BackHandler {
@@ -438,7 +443,7 @@ fun PlayerScreen(
                             },
                             label = {
                                 Text(
-                                    text = server.displayName,
+                                    text = if (server.isRecommendedForAnime) "${server.displayName} ⭐ Anime" else server.displayName,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isSelected) Color.White else VortexTextSecondary
                                 )

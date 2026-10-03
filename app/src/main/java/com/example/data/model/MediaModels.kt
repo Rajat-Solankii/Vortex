@@ -23,7 +23,8 @@ data class MediaItemDto(
     @Json(name = "vote_average") val voteAverage: Double? = null,
     @Json(name = "release_date") val releaseDate: String? = null,
     @Json(name = "first_air_date") val firstAirDate: String? = null,
-    @Json(name = "genre_ids") val genreIds: List<Int>? = null
+    @Json(name = "genre_ids") val genreIds: List<Int>? = null,
+    @Json(name = "adult") val adult: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -98,6 +99,19 @@ data class TvDetailsDto(
     @Json(name = "seasons") val seasons: List<SeasonDto>? = null
 )
 
+@JsonClass(generateAdapter = true)
+data class ProviderDto(
+    @Json(name = "provider_id") val providerId: Int,
+    @Json(name = "provider_name") val providerName: String,
+    @Json(name = "logo_path") val logoPath: String?,
+    @Json(name = "display_priority") val displayPriority: Int? = 0
+)
+
+@JsonClass(generateAdapter = true)
+data class ProviderResponse(
+    @Json(name = "results") val results: List<ProviderDto> = emptyList()
+)
+
 // Domain Models used across UI
 enum class MediaType {
     MOVIE,
@@ -134,7 +148,8 @@ data class MediaItem(
     val rating: Double,
     val releaseDate: String,
     val rawPosterPath: String? = null,
-    val rawBackdropPath: String? = null
+    val rawBackdropPath: String? = null,
+    val adult: Boolean = false
 )
 
 data class MediaDetail(
@@ -179,6 +194,7 @@ fun MediaItemDto.toDomain(fallbackType: MediaType = MediaType.MOVIE): MediaItem 
         rating = voteAverage ?: 0.0,
         releaseDate = displayDate,
         rawPosterPath = posterPath,
-        rawBackdropPath = backdropPath
+        rawBackdropPath = backdropPath,
+        adult = adult ?: false
     )
 }

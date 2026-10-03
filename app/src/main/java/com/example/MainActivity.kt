@@ -9,9 +9,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
@@ -27,6 +31,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import com.example.data.remote.SupabaseService
+import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.handleDeeplinks
+
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -43,6 +53,8 @@ import com.example.ui.screens.details.DetailsViewModel
 import com.example.ui.screens.history.HistoryScreen
 import com.example.ui.screens.home.HomeScreen
 import com.example.ui.screens.home.HomeViewModel
+import com.example.ui.screens.bookmarks.BookmarksScreen
+import com.example.ui.screens.bookmarks.BookmarksViewModel
 import com.example.ui.screens.player.PlayerScreen
 import com.example.ui.screens.search.SearchScreen
 import com.example.ui.screens.settings.SettingsScreen
@@ -60,7 +72,9 @@ sealed interface Screen {
     data object Home : Screen
     data object Search : Screen
     data object History : Screen
+    data object Bookmarks : Screen
     data object Settings : Screen
+    data object Login : Screen
     data class Details(
         val mediaId: Int,
         val mediaType: MediaType
@@ -74,6 +88,9 @@ sealed interface Screen {
         val initialSeason: Int = 1,
         val initialEpisode: Int = 1
     ) : Screen
+    data class CategoryFeed(val category: com.example.ui.screens.home.HomeCategory) : Screen
+    data class ProviderFeed(val providerId: Int, val providerName: String) : Screen
+    data object AllProviders : Screen
 }
 
 enum class BottomNavTab(
@@ -83,7 +100,9 @@ enum class BottomNavTab(
 ) {
     HOME("Home", Icons.Filled.Home, Icons.Outlined.Home),
     SEARCH("Search", Icons.Filled.Search, Icons.Outlined.Search),
-    HISTORY("History", Icons.Filled.History, Icons.Outlined.History)
+    HISTORY("History", Icons.Filled.History, Icons.Outlined.History),
+    BOOKMARKS("My List", Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
+    PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
 class MainActivity : ComponentActivity() {
@@ -92,6 +111,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SupabaseService.client.handleDeeplinks(intent)
         appContainer = AppContainer(applicationContext)
 
         // Enable 120 FPS / High Refresh Rate display mode if supported by device
@@ -119,11 +139,15 @@ fun VortexApp(appContainer: AppContainer) {
 
     val homeViewModel: HomeViewModel = viewModel(factory = factory)
     val detailsViewModel: DetailsViewModel = viewModel(factory = factory)
+    val bookmarksViewModel: BookmarksViewModel = viewModel(factory = factory)
 
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
     var selectedTab by remember { mutableStateOf(BottomNavTab.HOME) }
     var isDeviceBlocked by remember { mutableStateOf(false) }
     val deviceId = remember { TelegramService.getDeviceId(context) }
+
+    val sessionStatus by SupabaseService.client.auth.sessionStatus.collectAsState(initial = SessionStatus.Initializing)
+    val currentUser = (sessionStatus as? SessionStatus.Authenticated)?.session
 
     // Check device ban list from GitHub and send launch report via Telegram Monitor Bot
     LaunchedEffect(Unit) {
@@ -136,6 +160,22 @@ fun VortexApp(appContainer: AppContainer) {
         }
     }
 
+    // Automatically dismiss Login screen when authentication is successful (e.g. after deep link)
+    LaunchedEffect(sessionStatus) {
+        if (sessionStatus is SessionStatus.Authenticated) {
+            repository.refreshWatchHistory()
+            if (currentScreen is Screen.Login) {
+                currentScreen = when (selectedTab) {
+                    BottomNavTab.HOME -> Screen.Home
+                    BottomNavTab.SEARCH -> Screen.Search
+                    BottomNavTab.HISTORY -> Screen.History
+                    BottomNavTab.BOOKMARKS -> Screen.Bookmarks
+                    BottomNavTab.PROFILE -> Screen.Settings
+                }
+            }
+        }
+    }
+
     if (isDeviceBlocked) {
         BlockedScreen(deviceId = deviceId)
         return
@@ -143,7 +183,9 @@ fun VortexApp(appContainer: AppContainer) {
 
     val showBottomNav = currentScreen is Screen.Home ||
             currentScreen is Screen.Search ||
-            currentScreen is Screen.History
+            currentScreen is Screen.History ||
+            currentScreen is Screen.Bookmarks ||
+            currentScreen is Screen.Settings
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -164,6 +206,8 @@ fun VortexApp(appContainer: AppContainer) {
                                     BottomNavTab.HOME -> Screen.Home
                                     BottomNavTab.SEARCH -> Screen.Search
                                     BottomNavTab.HISTORY -> Screen.History
+                                    BottomNavTab.BOOKMARKS -> Screen.Bookmarks
+                                    BottomNavTab.PROFILE -> Screen.Settings
                                 }
                             },
                             icon = {
@@ -193,6 +237,18 @@ fun VortexApp(appContainer: AppContainer) {
                 .background(VortexDarkBackground)
         ) {
             when (val screen = currentScreen) {
+                is Screen.Login -> {
+                    com.example.ui.screens.login.LoginScreen(
+                        onLoginSuccess = {
+                            currentScreen = Screen.History
+                        },
+                        onBack = {
+                            selectedTab = BottomNavTab.HOME
+                            currentScreen = Screen.Home
+                        }
+                    )
+                }
+
                 is Screen.Home -> {
                     HomeScreen(
                         viewModel = homeViewModel,
@@ -208,17 +264,48 @@ fun VortexApp(appContainer: AppContainer) {
                                 backdropPath = historyItem.backdropPath
                             )
                         },
-                        onSearchClick = {
-                            selectedTab = BottomNavTab.SEARCH
-                            currentScreen = Screen.Search
+                        onCategoryViewAllClick = { category ->
+                            currentScreen = Screen.CategoryFeed(category)
                         },
-                        onHistoryScreenClick = {
-                            selectedTab = BottomNavTab.HISTORY
-                            currentScreen = Screen.History
+                        onProviderClick = { providerId, providerName ->
+                            currentScreen = Screen.ProviderFeed(providerId, providerName)
                         },
-                        onSettingsClick = {
-                            currentScreen = Screen.Settings
+                        onAllProvidersClick = {
+                            currentScreen = Screen.AllProviders
                         }
+                    )
+                }
+
+                is Screen.AllProviders -> {
+                    com.example.ui.screens.home.AllProvidersScreen(
+                        providers = homeViewModel.feedState.value.providers,
+                        onProviderClick = { id, name ->
+                            currentScreen = Screen.ProviderFeed(id, name)
+                        },
+                        onBackClick = { currentScreen = Screen.Home }
+                    )
+                }
+
+                is Screen.CategoryFeed -> {
+                    com.example.ui.screens.home.CategoryPagingScreen(
+                        category = screen.category,
+                        onBackClick = { currentScreen = Screen.Home },
+                        onMediaClick = { media ->
+                            currentScreen = Screen.Details(media.id, media.mediaType)
+                        },
+                        appContainer = appContainer
+                    )
+                }
+
+                is Screen.ProviderFeed -> {
+                    com.example.ui.screens.home.ProviderPagingScreen(
+                        providerId = screen.providerId,
+                        providerName = screen.providerName,
+                        onBackClick = { currentScreen = Screen.Home },
+                        onMediaClick = { media ->
+                            currentScreen = Screen.Details(media.id, media.mediaType)
+                        },
+                        appContainer = appContainer
                     )
                 }
 
@@ -255,15 +342,38 @@ fun VortexApp(appContainer: AppContainer) {
                         }
                     )
                 }
+                is Screen.Bookmarks -> {
+                    BookmarksScreen(
+                        viewModel = bookmarksViewModel,
+                        onPlayBookmark = { bookmark ->
+                            val mediaType = if (bookmark.mediaType == "tv") MediaType.TV else MediaType.MOVIE
+                            currentScreen = Screen.Details(bookmark.mediaId.toInt(), mediaType)
+                        },
+                        onBack = {
+                            selectedTab = BottomNavTab.HOME
+                            currentScreen = Screen.Home
+                        }
+                    )
+                }
 
                 is Screen.Settings -> {
-                    SettingsScreen(
+                    com.example.ui.screens.settings.SettingsScreen(
+                        repository = repository,
                         onBack = {
                             currentScreen = when (selectedTab) {
                                 BottomNavTab.HOME -> Screen.Home
                                 BottomNavTab.SEARCH -> Screen.Search
                                 BottomNavTab.HISTORY -> Screen.History
+                                BottomNavTab.BOOKMARKS -> Screen.Bookmarks
+                                BottomNavTab.PROFILE -> Screen.Settings
                             }
+                        },
+                        onLogoutSuccess = {
+                            currentScreen = Screen.Home
+                            selectedTab = BottomNavTab.HOME
+                        },
+                        onLoginClick = {
+                            currentScreen = Screen.Login
                         }
                     )
                 }
@@ -278,6 +388,8 @@ fun VortexApp(appContainer: AppContainer) {
                                 BottomNavTab.HOME -> Screen.Home
                                 BottomNavTab.SEARCH -> Screen.Search
                                 BottomNavTab.HISTORY -> Screen.History
+                                BottomNavTab.BOOKMARKS -> Screen.Bookmarks
+                                BottomNavTab.PROFILE -> Screen.Settings
                             }
                         },
                         onPlay = { detail, season, episode ->

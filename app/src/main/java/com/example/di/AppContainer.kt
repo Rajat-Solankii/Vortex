@@ -8,6 +8,7 @@ import com.example.data.remote.ApiClient
 import com.example.data.repository.VortexRepository
 import com.example.ui.screens.details.DetailsViewModel
 import com.example.ui.screens.home.HomeViewModel
+import com.example.ui.screens.bookmarks.BookmarksViewModel
 
 class AppContainer(private val context: Context) {
 
@@ -18,7 +19,10 @@ class AppContainer(private val context: Context) {
     val repository: VortexRepository by lazy {
         VortexRepository(
             apiService = ApiClient.vortexService,
-            watchHistoryDao = database.watchHistoryDao()
+            watchHistoryDao = database.watchHistoryDao(),
+            bookmarkDao = database.bookmarkDao(),
+            cachedHomeItemDao = database.cachedHomeItemDao(),
+            cachedProviderDao = database.cachedProviderDao()
         )
     }
 
@@ -31,6 +35,15 @@ class AppContainer(private val context: Context) {
                 }
                 modelClass.isAssignableFrom(DetailsViewModel::class.java) -> {
                     DetailsViewModel(repository) as T
+                }
+                modelClass.isAssignableFrom(BookmarksViewModel::class.java) -> {
+                    BookmarksViewModel(repository) as T
+                }
+                modelClass.isAssignableFrom(com.example.ui.screens.home.CategoryPagingViewModel::class.java) -> {
+                    com.example.ui.screens.home.CategoryPagingViewModel(repository) as T
+                }
+                modelClass.isAssignableFrom(com.example.ui.screens.home.ProviderPagingViewModel::class.java) -> {
+                    com.example.ui.screens.home.ProviderPagingViewModel(repository) as T
                 }
                 else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }

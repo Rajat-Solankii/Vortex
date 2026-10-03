@@ -3,6 +3,7 @@ package com.example.ui.screens.details
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.EpisodeItem
+import com.example.data.model.Bookmark
 import com.example.data.model.MediaDetail
 import com.example.data.model.MediaType
 import com.example.data.repository.VortexRepository
@@ -33,8 +34,12 @@ class DetailsViewModel(
     private val _uiState = MutableStateFlow<DetailsUiState>(DetailsUiState.Loading)
     val uiState: StateFlow<DetailsUiState> = _uiState.asStateFlow()
 
+    private val _isBookmarked = MutableStateFlow(false)
+    val isBookmarked: StateFlow<Boolean> = _isBookmarked.asStateFlow()
+
     fun loadDetails(mediaId: Int, mediaType: MediaType) {
         viewModelScope.launch {
+            _isBookmarked.value = repository.isBookmarked(mediaId.toString())
             _uiState.value = DetailsUiState.Loading
             val result = if (mediaType == MediaType.MOVIE) {
                 repository.getMovieDetails(mediaId)
@@ -90,6 +95,24 @@ class DetailsViewModel(
                         isLoadingEpisodes = false
                     )
                 )
+            }
+        }
+    }
+
+    fun toggleBookmark(detail: MediaDetail) {
+        viewModelScope.launch {
+            if (_isBookmarked.value) {
+                repository.removeBookmark(detail.id.toString())
+                _isBookmarked.value = false
+            } else {
+                val bookmark = Bookmark(
+                    mediaId = detail.id.toString(),
+                    mediaType = if (detail.mediaType == MediaType.TV) "tv" else "movie",
+                    title = detail.title,
+                    posterPath = detail.rawPosterPath
+                )
+                repository.addBookmark(bookmark)
+                _isBookmarked.value = true
             }
         }
     }

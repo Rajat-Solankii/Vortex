@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,7 @@ fun MediaCarousel(
     title: String,
     items: List<MediaItem>,
     onItemClick: (MediaItem) -> Unit,
+    onViewAllClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     accentColor: Color = VortexPurple
 ) {
@@ -74,13 +76,26 @@ fun MediaCarousel(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            Text(
-                text = "${items.size} titles",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color = VortexTextSecondary,
-                    fontSize = 11.sp
+            if (onViewAllClick != null) {
+                Text(
+                    text = "View All",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = accentColor,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    modifier = Modifier
+                        .clickable { onViewAllClick?.invoke() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
-            )
+            } else {
+                Text(
+                    text = "${items.size} titles",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = VortexTextSecondary,
+                        fontSize = 11.sp
+                    )
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(4.dp))

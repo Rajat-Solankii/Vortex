@@ -50,4 +50,10 @@ interface VortexApiService {
         @Query("page") page: Int = 1,
         @Query("include_adult") includeAdult: Boolean = false
     ): TmdbResponse<MediaItemDto>
+
+    @GET("api/tmdb")
+    suspend fun getProviders(
+        @Query("path") path: String = "watch/providers/movie",
+        @Query("watch_region") watchRegion: String = "US"
+    ): com.example.data.model.ProviderResponse
 }

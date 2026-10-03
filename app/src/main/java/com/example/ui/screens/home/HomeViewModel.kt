@@ -36,6 +36,7 @@ data class HomeFeedState(
     val hollywood: List<MediaItem> = emptyList(),
     val movies: List<MediaItem> = emptyList(),
     val tvShows: List<MediaItem> = emptyList(),
+    val providers: List<com.example.data.model.ProviderDto> = emptyList(),
     val errorMessage: String? = null
 )
 
@@ -55,6 +56,9 @@ class HomeViewModel(
 
     init {
         loadHomeFeed()
+        viewModelScope.launch {
+            repository.refreshWatchHistory()
+        }
     }
 
     fun selectCategory(category: HomeCategory) {
@@ -86,6 +90,9 @@ class HomeViewModel(
             val sliderItems = (trendingList + moviesList + hollywoodList).distinctBy { it.id }.take(6)
             val hero = sliderItems.firstOrNull() ?: trendingList.firstOrNull()
 
+            val providersResult = repository.getProviders()
+            val providersList = providersResult.getOrDefault(emptyList())
+
             _feedState.value = HomeFeedState(
                 isLoading = false,
                 selectedCategory = _feedState.value.selectedCategory,
@@ -99,6 +106,7 @@ class HomeViewModel(
                 hollywood = hollywoodList,
                 movies = moviesList,
                 tvShows = tvList,
+                providers = providersList,
                 errorMessage = null
             )
         }

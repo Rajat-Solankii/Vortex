@@ -80,11 +80,18 @@ import com.example.ui.theme.VortexPurpleLight
 import com.example.ui.theme.VortexTextMuted
 import com.example.ui.theme.VortexTextPrimary
 import com.example.ui.theme.VortexTextSecondary
+import com.example.data.remote.SupabaseService
+import io.github.jan.supabase.auth.auth
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onLogoutSuccess: () -> Unit,
+    onLoginClick: () -> Unit,
+    repository: com.example.data.repository.VortexRepository,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -141,7 +148,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
-                    text = "Settings & Updates",
+                    text = "Profile & Settings",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = VortexTextPrimary
@@ -158,6 +165,108 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            
+            // 0. PROFILE SECTION
+            val currentUser = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (currentUser != null) {
+                val email = currentUser.email ?: "Unknown Email"
+                val metadata = currentUser.userMetadata
+                // Accessing json element (user_metadata is JsonObject in supabase-kt usually)
+                val avatarUrl = metadata?.get("avatar_url")?.toString()?.replace("\"", "") ?: ""
+                
+                SettingsCard(title = "YOUR PROFILE") {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        if (avatarUrl.isNotEmpty()) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(avatarUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                                    .background(VortexPurple),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = email.firstOrNull()?.uppercase() ?: "?",
+                                    color = Color.White,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = email,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = VortexTextPrimary
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Synced via Supabase",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = VortexCyan
+                                )
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                SupabaseService.client.auth.signOut()
+                                repository.clearLocalDataOnLogout()
+                                onLogoutSuccess()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Log Out", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            } else {
+                SettingsCard(title = "YOUR PROFILE") {
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Not logged in",
+                            style = MaterialTheme.typography.bodyLarge.copy(color = VortexTextPrimary, fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Log in to sync your Watch History and Bookmarks across devices.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = VortexTextSecondary),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onLoginClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = VortexPurple),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Log In", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+
             // 1. UPDATE CHECKER SECTION
             SettingsCard(title = "APPLICATION UPDATES") {
                 Row(
@@ -571,7 +680,7 @@ private fun SettingsCard(
             border = androidx.compose.foundation.BorderStroke(1.dp, VortexDarkCardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Box(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
                 content()
             }
         }
