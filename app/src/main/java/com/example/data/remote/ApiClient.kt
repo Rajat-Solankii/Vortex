@@ -9,7 +9,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-    private const val BASE_URL = "https://vortex-proxy-six.vercel.app/"
+    private const val BASE_URL = "https://api.watchvortex.me/"
 
     private val moshi: Moshi by lazy {
         Moshi.Builder()

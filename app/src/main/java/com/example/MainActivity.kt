@@ -32,10 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
-import com.example.data.remote.SupabaseService
-import io.github.jan.supabase.auth.status.SessionStatus
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.handleDeeplinks
+
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -74,7 +71,7 @@ sealed interface Screen {
     data object History : Screen
     data object Bookmarks : Screen
     data object Settings : Screen
-    data object Login : Screen
+
     data class Details(
         val mediaId: Int,
         val mediaType: MediaType
@@ -112,7 +109,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.example.util.DeviceConfigHelper.initialize(applicationContext)
-        SupabaseService.client.handleDeeplinks(intent)
+
         appContainer = AppContainer(applicationContext)
 
         // Enable 120 FPS / High Refresh Rate display mode if supported by device
@@ -165,8 +162,7 @@ fun VortexApp(appContainer: AppContainer) {
     var isDeviceBlocked by remember { mutableStateOf(false) }
     val deviceId = remember { TelegramService.getDeviceId(context) }
 
-    val sessionStatus by SupabaseService.client.auth.sessionStatus.collectAsState(initial = SessionStatus.Initializing)
-    val currentUser = (sessionStatus as? SessionStatus.Authenticated)?.session
+
 
     // Check device ban list from GitHub and send launch report via Telegram Monitor Bot
     LaunchedEffect(Unit) {
@@ -179,15 +175,7 @@ fun VortexApp(appContainer: AppContainer) {
         }
     }
 
-    // Automatically dismiss Login screen when authentication is successful (e.g. after deep link)
-    LaunchedEffect(sessionStatus) {
-        if (sessionStatus is SessionStatus.Authenticated) {
-            repository.refreshWatchHistory()
-            if (currentScreen is Screen.Login) {
-                navigateBack()
-            }
-        }
-    }
+
 
     if (isDeviceBlocked) {
         BlockedScreen(deviceId = deviceId)
@@ -252,17 +240,6 @@ fun VortexApp(appContainer: AppContainer) {
                 .background(VortexDarkBackground)
         ) {
             when (val screen = currentScreen) {
-                is Screen.Login -> {
-                    com.example.ui.screens.login.LoginScreen(
-                        onLoginSuccess = {
-                            navigateBack()
-                        },
-                        onBack = {
-                            navigateBack()
-                        }
-                    )
-                }
-
                 is Screen.Home -> {
                     HomeScreen(
                         viewModel = homeViewModel,
@@ -372,14 +349,6 @@ fun VortexApp(appContainer: AppContainer) {
                         repository = repository,
                         onBack = {
                             navigateBack()
-                        },
-                        onLogoutSuccess = {
-                            backStack.clear()
-                            backStack.add(Screen.Home)
-                            selectedTab = BottomNavTab.HOME
-                        },
-                        onLoginClick = {
-                            navigateTo(Screen.Login)
                         }
                     )
                 }
