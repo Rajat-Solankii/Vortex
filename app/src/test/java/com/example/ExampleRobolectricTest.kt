@@ -57,7 +57,7 @@ class ExampleRobolectricTest {
 
     @Test
     fun `github config service current version`() {
-        assertEquals(1, GitHubConfigService.CURRENT_VERSION_CODE)
+        assertEquals(2, GitHubConfigService.CURRENT_VERSION_CODE)
         assertEquals("1.0", GitHubConfigService.CURRENT_VERSION_NAME)
     }
 }
