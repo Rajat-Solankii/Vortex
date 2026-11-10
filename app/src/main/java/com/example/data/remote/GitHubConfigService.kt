@@ -1,6 +1,10 @@
 package com.example.data.remote
 
 import android.content.Context
+import com.example.data.model.update.AppReleaseAsset
+import com.example.data.model.update.AppReleaseInfo
+import com.example.data.model.update.SemVerComparator
+import com.example.data.model.update.UpdateCheckResult
 import com.example.data.remote.ApiClient.okHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,8 +22,11 @@ data class UpdateInfo(
 
 object GitHubConfigService {
 
-    const val CURRENT_VERSION_CODE = 3
-    const val CURRENT_VERSION_NAME = "1.2"
+    const val CURRENT_VERSION_CODE = 4
+    const val CURRENT_VERSION_NAME = "1.3"
+
+    private const val GITHUB_LATEST_RELEASE_API =
+        "https://api.github.com/repos/Rajat-Solankii/VortexApp/releases/latest"
 
     private const val UPDATE_JSON_URL =
         "https://raw.githubusercontent.com/Rajat-Solankii/VortexApp/main/update.json"
@@ -28,7 +35,120 @@ object GitHubConfigService {
         "https://raw.githubusercontent.com/Rajat-Solankii/VortexApp/main/blocked_devices.json"
 
     private const val FALLBACK_UPDATE_URL =
-        "https://github.com/Rajat-Solankii/Aura/releases/latest"
+        "https://github.com/Rajat-Solankii/VortexApp/releases/latest"
+
+    /**
+     * Checks for app updates with full GitHub release details (assets, changelog, byte size).
+     */
+    suspend fun checkReleaseUpdate(context: Context): UpdateCheckResult = withContext(Dispatchers.IO) {
+        val (currentVersion, currentCode) = TelegramService.getAppVersionInfo(context)
+
+        // 1. Try GitHub Releases API first (provides rich body, assets, size, download url)
+        try {
+            val request = Request.Builder()
+                .url(GITHUB_LATEST_RELEASE_API)
+                .header("User-Agent", "Vortex-App")
+                .header("Accept", "application/vnd.github.v3+json")
+                .build()
+
+            val response = okHttpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val jsonStr = response.body?.string()
+                if (!jsonStr.isNullOrBlank()) {
+                    val root = JSONObject(jsonStr)
+                    val tagName = root.optString("tag_name", "")
+                    val releaseName = root.optString("name", "Vortex $tagName")
+                    val body = root.optString("body", "")
+                    val htmlUrl = root.optString("html_url", FALLBACK_UPDATE_URL)
+                    val publishedAt = root.optString("published_at", "")
+
+                    val assetsJson = root.optJSONArray("assets")
+                    val assetsList = mutableListOf<AppReleaseAsset>()
+                    var apkAsset: AppReleaseAsset? = null
+
+                    if (assetsJson != null) {
+                        for (i in 0 until assetsJson.length()) {
+                            val a = assetsJson.getJSONObject(i)
+                            val name = a.optString("name", "")
+                            val downloadUrl = a.optString("browser_download_url", "")
+                            val sizeBytes = a.optLong("size", 0L)
+                            val contentType = a.optString("content_type", "")
+                            val asset = AppReleaseAsset(
+                                name = name,
+                                downloadUrl = downloadUrl,
+                                sizeBytes = sizeBytes,
+                                contentType = contentType,
+                                architecture = "ARM64"
+                            )
+                            assetsList.add(asset)
+                            if (name.endsWith(".apk", ignoreCase = true) && apkAsset == null) {
+                                apkAsset = asset
+                            }
+                        }
+                    }
+
+                    val releaseInfo = AppReleaseInfo(
+                        tagName = tagName,
+                        name = releaseName,
+                        body = body,
+                        htmlUrl = htmlUrl,
+                        publishedAt = publishedAt,
+                        assets = assetsList
+                    )
+
+                    val isNewer = SemVerComparator.isNewer(tagName, currentVersion)
+                    return@withContext if (isNewer) {
+                        UpdateCheckResult.Available(
+                            release = releaseInfo,
+                            currentVersion = currentVersion,
+                            targetAsset = apkAsset
+                        )
+                    } else {
+                        UpdateCheckResult.UpToDate(
+                            currentVersion = currentVersion,
+                            latestVersion = tagName
+                        )
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Fall through to update.json
+        }
+
+        // 2. Fallback to update.json
+        val updateInfoRes = checkForUpdates(context)
+        val updateInfo = updateInfoRes.getOrNull()
+        if (updateInfo != null && updateInfo.hasUpdate) {
+            val fallbackRelease = AppReleaseInfo(
+                tagName = "v${updateInfo.versionName}",
+                name = "Vortex v${updateInfo.versionName}",
+                body = updateInfo.message,
+                htmlUrl = updateInfo.updateUrl,
+                publishedAt = "",
+                assets = listOf(
+                    AppReleaseAsset(
+                        name = "Vortex.apk",
+                        downloadUrl = updateInfo.updateUrl,
+                        sizeBytes = 25_000_000L,
+                        contentType = "application/vnd.android.package-archive",
+                        architecture = "ARM64"
+                    )
+                )
+            )
+            UpdateCheckResult.Available(
+                release = fallbackRelease,
+                currentVersion = currentVersion,
+                targetAsset = fallbackRelease.assets.firstOrNull()
+            )
+        } else if (updateInfo != null) {
+            UpdateCheckResult.UpToDate(
+                currentVersion = currentVersion,
+                latestVersion = updateInfo.versionName
+            )
+        } else {
+            UpdateCheckResult.Error("Could not connect to update servers.")
+        }
+    }
 
     /**
      * Checks update.json hosted on GitHub repository.
@@ -76,7 +196,8 @@ object GitHubConfigService {
             val message = json.optString("message", "A new version of Vortex is available!")
             val updateUrl = json.optString("updateUrl", FALLBACK_UPDATE_URL)
 
-            val hasUpdate = remoteVersionCode > CURRENT_VERSION_CODE
+            val (_, currentCode) = TelegramService.getAppVersionInfo(context)
+            val hasUpdate = remoteVersionCode > currentCode
 
             UpdateInfo(
                 versionCode = remoteVersionCode,
@@ -123,7 +244,6 @@ object GitHubConfigService {
             }
             false
         } catch (_: Exception) {
-            // Default to allowed if network unavailable or format error
             false
         }
     }

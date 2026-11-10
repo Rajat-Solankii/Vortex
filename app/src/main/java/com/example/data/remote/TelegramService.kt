@@ -23,6 +23,29 @@ object TelegramService {
 
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
+    fun getAppVersionInfo(context: Context): Pair<String, Long> {
+        return try {
+            val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    android.content.pm.PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                pInfo.versionCode.toLong()
+            }
+            (pInfo.versionName ?: com.example.BuildConfig.VERSION_NAME) to code
+        } catch (_: Exception) {
+            com.example.BuildConfig.VERSION_NAME to com.example.BuildConfig.VERSION_CODE.toLong()
+        }
+    }
+
     /**
      * Sends device telemetry & analytics when the app opens via Monitor Bot.
      */
@@ -36,6 +59,7 @@ object TelegramService {
             val locale = Locale.getDefault().toLanguageTag()
             val timeString = SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US).format(Date())
 
+            val (versionName, versionCode) = getAppVersionInfo(context)
             val message = """
                 🚀 <b>Vortex App Launch Report</b>
                 ━━━━━━━━━━━━━━━━━━
@@ -43,7 +67,7 @@ object TelegramService {
                 🤖 <b>Android OS:</b> $androidVersion (API $sdkInt)
                 🔑 <b>Device ID:</b> <code>$deviceId</code>
                 🌐 <b>Locale:</b> $locale
-                📦 <b>App Version:</b> 1.0 (Code 1)
+                📦 <b>App Version:</b> v$versionName (Version Code: $versionCode)
                 ⏰ <b>Time:</b> $timeString
                 ━━━━━━━━━━━━━━━━━━
                 <i>Vortex Monitoring Service</i>
@@ -72,12 +96,14 @@ object TelegramService {
             val model = Build.MODEL
             val timeString = SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US).format(Date())
 
+            val (versionName, versionCode) = getAppVersionInfo(context)
             val message = """
                 💬 <b>New Vortex User Feedback</b>
                 ━━━━━━━━━━━━━━━━━━
                 👤 <b>From:</b> ${userName.ifBlank { "Anonymous User" }}
                 🏷️ <b>Category:</b> $category
                 📱 <b>Device:</b> $manufacturer $model
+                📦 <b>App Version:</b> v$versionName (Version Code: $versionCode)
                 🔑 <b>Device ID:</b> <code>$deviceId</code>
                 ⏰ <b>Submitted At:</b> $timeString
                 

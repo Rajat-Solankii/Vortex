@@ -534,9 +534,9 @@ class VortexRepository(
         }
     }
 
-    suspend fun search(query: String): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+    suspend fun search(query: String, includeAdult: Boolean = false): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
         runCatching {
-            val response = apiService.search(query = query)
+            val response = apiService.search(query = query, includeAdult = includeAdult)
             ContentFilter.filterDomain(response.results.map { it.toDomain() })
         }.recoverCatching {
             getCuratedFallback().filter {
@@ -557,22 +557,23 @@ class VortexRepository(
         episode: Int? = null
     ) = withContext(Dispatchers.IO) {
         runCatching {
+            val entity = WatchHistoryEntity(
+                id = id,
+                title = title,
+                posterPath = posterPath,
+                backdropPath = backdropPath,
+                mediaType = if (mediaType == MediaType.TV) "tv" else "movie",
+                lastPositionMs = positionMs,
+                durationMs = durationMs,
+                seasonNumber = season,
+                episodeNumber = episode,
+                lastWatchedTimestamp = System.currentTimeMillis()
+            )
+            watchHistoryDao.insertOrUpdate(entity)
+
             val user = SupabaseService.client.auth.currentSessionOrNull()?.user
             if (user == null) {
-                // Fallback to local if not logged in
-                val entity = WatchHistoryEntity(
-                    id = id,
-                    title = title,
-                    posterPath = posterPath,
-                    backdropPath = backdropPath,
-                    mediaType = if (mediaType == MediaType.TV) "tv" else "movie",
-                    lastPositionMs = positionMs,
-                    durationMs = durationMs,
-                    seasonNumber = season,
-                    episodeNumber = episode,
-                    lastWatchedTimestamp = System.currentTimeMillis()
-                )
-                watchHistoryDao.insertOrUpdate(entity)
+                refreshWatchHistory()
                 return@withContext
             }
 
@@ -619,9 +620,10 @@ class VortexRepository(
 
     suspend fun deleteWatchHistory(id: Int) = withContext(Dispatchers.IO) {
         runCatching {
+            watchHistoryDao.deleteById(id)
             val user = SupabaseService.client.auth.currentSessionOrNull()?.user
             if (user == null) {
-                watchHistoryDao.deleteById(id)
+                refreshWatchHistory()
                 return@withContext
             }
             
@@ -643,9 +645,10 @@ class VortexRepository(
 
     suspend fun clearWatchHistory() = withContext(Dispatchers.IO) {
         runCatching {
+            watchHistoryDao.clearAll()
+            _watchHistory.value = emptyList()
             val user = SupabaseService.client.auth.currentSessionOrNull()?.user
             if (user == null) {
-                watchHistoryDao.clearAll()
                 return@withContext
             }
             
@@ -684,35 +687,33 @@ class VortexRepository(
 
     suspend fun addBookmark(bookmark: Bookmark): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
-            if (user == null) {
-                bookmarkDao.insertOrUpdate(
-                    com.example.data.local.BookmarkEntity(
-                        mediaId = bookmark.mediaId,
-                        mediaType = bookmark.mediaType,
-                        title = bookmark.title,
-                        posterPath = bookmark.posterPath
-                    )
+            bookmarkDao.insertOrUpdate(
+                com.example.data.local.BookmarkEntity(
+                    mediaId = bookmark.mediaId,
+                    mediaType = bookmark.mediaType,
+                    title = bookmark.title,
+                    posterPath = bookmark.posterPath
                 )
-                return@withContext true
+            )
+            val user = SupabaseService.client.auth.currentSessionOrNull()?.user
+            if (user != null) {
+                val bookmarkWithUser = bookmark.copy(userId = user.id)
+                SupabaseService.client.postgrest["bookmarks"].insert(bookmarkWithUser)
             }
-            val bookmarkWithUser = bookmark.copy(userId = user.id)
-            SupabaseService.client.postgrest["bookmarks"].insert(bookmarkWithUser)
             true
         }.getOrDefault(false)
     }
 
     suspend fun removeBookmark(mediaId: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
+            bookmarkDao.deleteById(mediaId)
             val user = SupabaseService.client.auth.currentSessionOrNull()?.user
-            if (user == null) {
-                bookmarkDao.deleteById(mediaId)
-                return@withContext true
-            }
-            SupabaseService.client.postgrest["bookmarks"].delete {
-                filter {
-                    eq("user_id", user.id)
-                    eq("media_id", mediaId)
+            if (user != null) {
+                SupabaseService.client.postgrest["bookmarks"].delete {
+                    filter {
+                        eq("user_id", user.id)
+                        eq("media_id", mediaId)
+                    }
                 }
             }
             true
@@ -721,6 +722,8 @@ class VortexRepository(
 
     suspend fun isBookmarked(mediaId: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
+            val local = bookmarkDao.getBookmarkById(mediaId)
+            if (local != null) return@withContext true
             val user = SupabaseService.client.auth.currentSessionOrNull()?.user ?: return@withContext false
             val result = SupabaseService.client.postgrest["bookmarks"]
                 .select {

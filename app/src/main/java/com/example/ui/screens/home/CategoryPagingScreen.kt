@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,9 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.model.MediaItem
 import com.example.di.AppContainer
 import com.example.ui.components.MediaPosterCard
-import com.example.ui.theme.VortexDarkBackground
-import com.example.ui.theme.VortexPurple
-import com.example.ui.theme.VortexTextPrimary
+import com.example.ui.theme.LocalVortexColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +45,7 @@ fun CategoryPagingScreen(
     onMediaClick: (MediaItem) -> Unit,
     appContainer: AppContainer
 ) {
+    val colors = LocalVortexColors.current
     val viewModel: CategoryPagingViewModel = viewModel(
         factory = appContainer.viewModelFactory
     )
@@ -61,27 +60,27 @@ fun CategoryPagingScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = category.title, color = VortexTextPrimary) },
+                title = { Text(text = category.title, color = colors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = VortexTextPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = VortexDarkBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background)
             )
         },
-        containerColor = VortexDarkBackground
+        containerColor = colors.background
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
             if (state.items.isEmpty() && state.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = VortexPurple)
+                    CircularProgressIndicator(color = colors.primary)
                 }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
                     state = listState,
-                    contentPadding = PaddingValues(8.dp),
+                    contentPadding = PaddingValues(start = 10.dp, top = 8.dp, end = 10.dp, bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
@@ -100,7 +99,7 @@ fun CategoryPagingScreen(
                     if (state.isLoading) {
                         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
                             Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = VortexPurple, modifier = Modifier.size(32.dp))
+                                CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(32.dp))
                             }
                         }
                     }

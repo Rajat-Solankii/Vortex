@@ -3,6 +3,7 @@ package com.example.di
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.data.local.UserPreferencesManager
 import com.example.data.local.VortexDatabase
 import com.example.data.remote.ApiClient
 import com.example.data.repository.VortexRepository
@@ -11,6 +12,10 @@ import com.example.ui.screens.home.HomeViewModel
 import com.example.ui.screens.bookmarks.BookmarksViewModel
 
 class AppContainer(private val context: Context) {
+
+    val userPreferencesManager: UserPreferencesManager by lazy {
+        UserPreferencesManager(context)
+    }
 
     private val database: VortexDatabase by lazy {
         VortexDatabase.getInstance(context)

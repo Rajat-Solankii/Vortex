@@ -1,6 +1,7 @@
 package com.example.ui.screens.history
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,16 +57,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.local.WatchHistoryEntity
 import com.example.data.repository.VortexRepository
-import com.example.ui.theme.VortexCyan
-import com.example.ui.theme.VortexDarkBackground
-import com.example.ui.theme.VortexDarkCard
-import com.example.ui.theme.VortexDarkCardBorder
-import com.example.ui.theme.VortexDarkSurface
-import com.example.ui.theme.VortexPurple
-import com.example.ui.theme.VortexPurpleLight
-import com.example.ui.theme.VortexTextMuted
-import com.example.ui.theme.VortexTextPrimary
-import com.example.ui.theme.VortexTextSecondary
+import com.example.ui.theme.LocalVortexColors
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -79,6 +71,7 @@ fun HistoryScreen(
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val colors = LocalVortexColors.current
     val historyList by repository.watchHistory.collectAsStateWithLifecycle(initialValue = emptyList())
     var showClearDialog by remember { mutableStateOf(false) }
 
@@ -89,7 +82,7 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(VortexDarkBackground)
+            .background(colors.background)
             .statusBarsPadding()
     ) {
         // Top Bar
@@ -106,7 +99,7 @@ fun HistoryScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Color.White
+                    tint = colors.textPrimary
                 )
             }
 
@@ -114,7 +107,7 @@ fun HistoryScreen(
                 text = "Watch History",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    color = VortexTextPrimary
+                    color = colors.textPrimary
                 ),
                 modifier = Modifier.weight(1f)
             )
@@ -127,7 +120,7 @@ fun HistoryScreen(
                     Icon(
                         imageVector = Icons.Default.DeleteSweep,
                         contentDescription = "Clear all",
-                        tint = VortexTextSecondary
+                        tint = colors.textSecondary
                     )
                 }
             }
@@ -145,7 +138,7 @@ fun HistoryScreen(
                     Icon(
                         imageVector = Icons.Default.History,
                         contentDescription = null,
-                        tint = VortexPurpleLight.copy(alpha = 0.4f),
+                        tint = colors.primaryLight.copy(alpha = 0.4f),
                         modifier = Modifier.size(72.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -153,14 +146,14 @@ fun HistoryScreen(
                         text = "No Watch History Yet",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = VortexTextPrimary
+                            color = colors.textPrimary
                         )
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Movies and TV shows you stream will be automatically saved here so you can pick up right where you left off.",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = VortexTextSecondary
+                            color = colors.textSecondary
                         ),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -168,7 +161,7 @@ fun HistoryScreen(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -181,9 +174,9 @@ fun HistoryScreen(
                     } else 0.4f
 
                     Surface(
-                        color = VortexDarkCard,
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, VortexDarkCardBorder),
+                        color = colors.card,
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, colors.cardBorder),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onPlayHistoryItem(item) }
@@ -197,7 +190,7 @@ fun HistoryScreen(
                                 modifier = Modifier
                                     .width(100.dp)
                                     .height(65.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(10.dp))
                                     .background(Color.Black)
                             ) {
                                 val imageSource = when {
@@ -229,7 +222,7 @@ fun HistoryScreen(
 
                                 LinearProgressIndicator(
                                     progress = { progress },
-                                    color = VortexPurple,
+                                    color = colors.primary,
                                     trackColor = Color.White.copy(alpha = 0.2f),
                                     strokeCap = StrokeCap.Round,
                                     modifier = Modifier
@@ -247,7 +240,7 @@ fun HistoryScreen(
                                     text = item.title,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = VortexTextPrimary
+                                        color = colors.textPrimary
                                     ),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -260,7 +253,7 @@ fun HistoryScreen(
                                         "Season $s • Episode $e"
                                     } else "Full Feature Film",
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        color = VortexPurpleLight,
+                                        color = colors.primaryLight,
                                         fontSize = 11.sp
                                     )
                                 )
@@ -270,7 +263,7 @@ fun HistoryScreen(
                                 Text(
                                     text = "Watched $dateStr",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = VortexTextMuted,
+                                        color = colors.textMuted,
                                         fontSize = 10.sp
                                     )
                                 )
@@ -287,7 +280,7 @@ fun HistoryScreen(
                                 Icon(
                                     imageVector = Icons.Default.Delete,
                                     contentDescription = "Delete",
-                                    tint = VortexTextMuted,
+                                    tint = colors.textMuted,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -301,11 +294,11 @@ fun HistoryScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear Watch History?", color = VortexTextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("Clear Watch History?", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
                     "This will delete all saved watch progress from your device's local database.",
-                    color = VortexTextSecondary
+                    color = colors.textSecondary
                 )
             },
             confirmButton = {
@@ -322,10 +315,10 @@ fun HistoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
-                    Text("Cancel", color = VortexTextSecondary)
+                    Text("Cancel", color = colors.textSecondary)
                 }
             },
-            containerColor = VortexDarkSurface
+            containerColor = colors.surface
         )
     }
 }

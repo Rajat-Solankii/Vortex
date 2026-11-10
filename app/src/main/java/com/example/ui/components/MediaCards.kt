@@ -59,9 +59,9 @@ import com.example.ui.theme.VortexTextMuted
 import com.example.ui.theme.VortexTextPrimary
 
 // Static reusable shapes to avoid heap allocations on 120Hz frames
-private val CardCornerShape = RoundedCornerShape(12.dp)
+private val CardCornerShape = RoundedCornerShape(14.dp)
 private val RatingPillShape = RoundedCornerShape(bottomStart = 8.dp)
-private val TagShape = RoundedCornerShape(4.dp)
+private val TagShape = RoundedCornerShape(5.dp)
 
 private val CardBorderColor = VortexDarkCardBorder.copy(alpha = 0.6f)
 private val ContinueCardBorderColor = VortexPurple.copy(alpha = 0.4f)
@@ -77,7 +77,8 @@ private val CardScrimGradient = Brush.verticalGradient(
 fun MediaPosterCard(
     media: MediaItem,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cardWidth: androidx.compose.ui.unit.Dp? = null
 ) {
     val context = LocalContext.current
     val imageUrl = remember(media.posterUrl, media.backdropUrl) {
@@ -88,15 +89,17 @@ fun MediaPosterCard(
     val imageRequest = remember(imageUrl) {
         ImageRequest.Builder(context)
             .data(imageUrl)
-            .size(Size(300, 450))
+            .size(Size(220, 330))
             .precision(Precision.INEXACT)
             .allowHardware(true)
             .build()
     }
 
+    val widthModifier = if (cardWidth != null) Modifier.width(cardWidth) else Modifier
+
     Column(
         modifier = modifier
-            .width(135.dp)
+            .then(widthModifier)
             .testTag("media_card_${media.id}")
             .clickable(onClick = onClick)
     ) {
@@ -157,10 +160,10 @@ fun MediaPosterCard(
                     text = if (media.mediaType == MediaType.TV) "TV" else "MOVIE",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White
                     ),
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                 )
             }
         }
@@ -171,20 +174,20 @@ fun MediaPosterCard(
             text = media.title,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.SemiBold,
-                color = VortexTextPrimary
+                color = VortexTextPrimary,
+                fontSize = 13.sp
             ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
 
-        if (media.releaseDate.isNotEmpty()) {
-            Text(
-                text = media.releaseDate.take(4),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color = VortexTextMuted
-                )
+        Text(
+            text = if (media.releaseDate.length >= 4) media.releaseDate.take(4) else "Stream",
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = VortexTextMuted,
+                fontSize = 11.sp
             )
-        }
+        )
     }
 }
 
@@ -196,7 +199,7 @@ fun ContinueWatchingCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val progress = remember(item.durationMs, item.lastPositionMs) {
+    val progress = remember(item.lastPositionMs, item.durationMs) {
         if (item.durationMs > 0) {
             (item.lastPositionMs.toFloat() / item.durationMs.toFloat()).coerceIn(0.05f, 1f)
         } else 0.35f

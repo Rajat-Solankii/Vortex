@@ -1,5 +1,6 @@
 package com.example.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -118,6 +119,7 @@ enum class MediaType {
     TV
 }
 
+@Immutable
 data class SeasonItem(
     val id: Int,
     val name: String,
@@ -126,6 +128,7 @@ data class SeasonItem(
     val posterUrl: String
 )
 
+@Immutable
 data class EpisodeItem(
     val id: Int,
     val name: String,
@@ -138,6 +141,7 @@ data class EpisodeItem(
     val runtime: Int? = null
 )
 
+@Immutable
 data class MediaItem(
     val id: Int,
     val title: String,
@@ -152,6 +156,7 @@ data class MediaItem(
     val adult: Boolean = false
 )
 
+@Immutable
 data class MediaDetail(
     val id: Int,
     val title: String,

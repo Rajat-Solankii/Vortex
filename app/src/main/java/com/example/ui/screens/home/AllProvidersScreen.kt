@@ -37,10 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.ProviderDto
-import com.example.ui.theme.VortexDarkBackground
-import com.example.ui.theme.VortexDarkSurface
-import com.example.ui.theme.VortexTextPrimary
-import com.example.ui.theme.VortexTextSecondary
+import com.example.ui.theme.LocalVortexColors
 
 @Composable
 fun AllProvidersScreen(
@@ -49,6 +46,8 @@ fun AllProvidersScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = LocalVortexColors.current
+
     BackHandler {
         onBackClick()
     }
@@ -56,7 +55,7 @@ fun AllProvidersScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(VortexDarkBackground)
+            .background(colors.background)
             .statusBarsPadding()
     ) {
         // Top Bar
@@ -70,7 +69,7 @@ fun AllProvidersScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = VortexTextPrimary
+                    tint = colors.textPrimary
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -78,7 +77,7 @@ fun AllProvidersScreen(
                 text = "Streaming Providers",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    color = VortexTextPrimary
+                    color = colors.textPrimary
                 )
             )
         }
@@ -86,7 +85,7 @@ fun AllProvidersScreen(
         // Grid
         LazyVerticalGrid(
             columns = GridCells.Adaptive(80.dp),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize()
@@ -99,38 +98,45 @@ fun AllProvidersScreen(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { onProviderClick(provider.providerId, provider.providerName) }
+                        .padding(4.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(70.dp)
+                            .size(72.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(VortexDarkSurface),
+                            .background(colors.card),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (imageUrl.isNotBlank()) {
+                        if (imageUrl.isNotEmpty()) {
                             AsyncImage(
                                 model = imageUrl,
                                 contentDescription = provider.providerName,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
                             )
                         } else {
                             Text(
-                                text = provider.providerName.take(1).uppercase(),
-                                color = VortexTextPrimary,
-                                style = MaterialTheme.typography.titleMedium
+                                text = provider.providerName.take(2).uppercase(),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary
+                                )
                             )
                         }
                     }
+
                     Spacer(modifier = Modifier.height(6.dp))
+
                     Text(
                         text = provider.providerName,
-                        style = MaterialTheme.typography.labelSmall.copy(color = VortexTextSecondary),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = colors.textSecondary,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

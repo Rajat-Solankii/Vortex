@@ -14,28 +14,45 @@ android {
     applicationId = "com.aistudio.vortex.stream"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "1.2"
+    versionCode = 4
+    versionName = "1.3"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  val uploadKeystore = file(System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks")
+  val hasUploadKey = uploadKeystore.exists() && !System.getenv("STORE_PASSWORD").isNullOrEmpty()
+
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+    if (hasUploadKey) {
+      create("release") {
+        storeFile = uploadKeystore
+        storePassword = System.getenv("STORE_PASSWORD")
+        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("STORE_PASSWORD")
+      }
     }
   }
 
   buildTypes {
     release {
+      if (hasUploadKey) {
+        signingConfig = signingConfigs.getByName("release")
+      } else {
+        signingConfig = signingConfigs.getByName("debug")
+      }
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+    }
+  }
+
+  splits {
+    abi {
+      isEnable = true
+      reset()
+      include("arm64-v8a", "armeabi-v7a", "x86_64")
+      isUniversalApk = true
     }
   }
   compileOptions {
@@ -80,7 +97,7 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
-  // implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)

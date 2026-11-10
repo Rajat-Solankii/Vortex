@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -92,6 +94,8 @@ import com.example.ui.theme.VortexPurpleLight
 import com.example.ui.theme.VortexTextMuted
 import com.example.ui.theme.VortexTextPrimary
 import com.example.ui.theme.VortexTextSecondary
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.local.UserPreferencesManager
 import kotlinx.coroutines.launch
 
 private fun Context.findActivity(): ComponentActivity? {
@@ -113,6 +117,7 @@ fun PlayerScreen(
     initialSeason: Int = 1,
     initialEpisode: Int = 1,
     repository: VortexRepository,
+    userPreferencesManager: UserPreferencesManager? = null,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -126,7 +131,22 @@ fun PlayerScreen(
     var currentPoster by remember(posterPath) { mutableStateOf(posterPath) }
     var currentBackdrop by remember(backdropPath) { mutableStateOf(backdropPath) }
 
-    var selectedServer by remember { mutableStateOf(StreamServer.SERVER1) }
+    val defaultServerPref by (userPreferencesManager?.defaultServer?.collectAsStateWithLifecycle(initialValue = "Server 1")
+        ?: remember { mutableStateOf("Server 1") })
+
+    val initialServer = remember(defaultServerPref) {
+        when {
+            defaultServerPref.startsWith("Server 2") -> StreamServer.SERVER2
+            defaultServerPref.startsWith("Server 3") -> StreamServer.SERVER3
+            defaultServerPref.startsWith("Server 4") -> StreamServer.SERVER4
+            defaultServerPref.startsWith("Server 5") -> StreamServer.SERVER5
+            defaultServerPref.startsWith("Server 6") -> StreamServer.SERVER6
+            defaultServerPref.startsWith("Server 7") -> StreamServer.SERVER7
+            else -> StreamServer.SERVER1
+        }
+    }
+
+    var selectedServer by remember(initialServer) { mutableStateOf(initialServer) }
     var selectedSeason by remember(initialSeason) { mutableIntStateOf(initialSeason) }
     var selectedEpisode by remember(initialEpisode) { mutableIntStateOf(initialEpisode) }
     var reloadKey by remember { mutableIntStateOf(0) }
@@ -256,6 +276,7 @@ fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 IconButton(
@@ -382,6 +403,7 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
                     .padding(16.dp)
             ) {
                 // Ad Blocker Shield Badge
