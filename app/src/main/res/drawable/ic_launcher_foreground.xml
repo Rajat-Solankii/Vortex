@@ -1,0 +1,45 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer Vortex Swirl -->
+    <path
+        android:strokeWidth="4"
+        android:strokeColor="#7C4DFF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 54,28 A 26,26 0 1,1 32,42" />
+
+    <!-- Secondary inner swirl -->
+    <path
+        android:strokeWidth="3.5"
+        android:strokeColor="#B388FF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 54,80 A 26,26 0 0,1 76,66" />
+
+    <!-- Central Vortex Core Glow -->
+    <path
+        android:fillColor="#337C4DFF"
+        android:pathData="M54,34 A20,20 0 1,1 53.9,34 Z" />
+
+    <!-- Play Icon Triangle in center -->
+    <path
+        android:pathData="M 48,43 L 66,54 L 48,65 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="48"
+                android:startY="43"
+                android:endX="66"
+                android:endY="65"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFFF" />
+                <item android:offset="0.5" android:color="#E0D4FF" />
+                <item android:offset="1.0" android:color="#B388FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
