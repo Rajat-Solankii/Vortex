@@ -62,6 +62,7 @@ import com.example.ui.components.MediaCarousel
 import com.example.ui.components.MediaPosterCard
 import com.example.ui.components.OneUiHeader
 import com.example.ui.components.RecommendationSlider
+import com.example.ui.theme.LocalVortexColors
 import com.example.ui.theme.VortexCyan
 import com.example.ui.theme.VortexDarkBackground
 import com.example.ui.theme.VortexDarkCard
@@ -86,6 +87,7 @@ fun HomeScreen(
     onAllProvidersClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = LocalVortexColors.current
     val feedState by viewModel.feedState.collectAsStateWithLifecycle()
     val watchHistory by viewModel.watchHistory.collectAsStateWithLifecycle()
 
@@ -100,7 +102,7 @@ fun HomeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(VortexDarkBackground)
+            .background(colors.background)
     ) {
         // 1. One UI Large Collapsible Header
         OneUiHeader(collapseFraction = collapseFraction)
@@ -344,10 +346,75 @@ fun HomeScreen(
                         }
                     }
 
+                    // Trending Now
+                    if (feedState.trending.isNotEmpty()) {
+                        item(key = "cat_trending") {
+                            MediaCarousel(
+                                title = "Trending Now",
+                                items = feedState.trending,
+                                onItemClick = onMediaClick,
+                                onViewAllClick = { onCategoryViewAllClick(HomeCategory.TRENDING) },
+                                accentColor = VortexPurple
+                            )
+                        }
+                    }
+
+                    // Top Rated
+                    if (feedState.topRated.isNotEmpty()) {
+                        item(key = "cat_top_rated") {
+                            MediaCarousel(
+                                title = "Top Rated",
+                                items = feedState.topRated,
+                                onItemClick = onMediaClick,
+                                onViewAllClick = { onCategoryViewAllClick(HomeCategory.TOP_RATED) },
+                                accentColor = VortexGold
+                            )
+                        }
+                    }
+
+                    // Popular Movies
+                    if (feedState.movies.isNotEmpty()) {
+                        item(key = "cat_popular_movies") {
+                            MediaCarousel(
+                                title = "Popular Movies",
+                                items = feedState.movies,
+                                onItemClick = onMediaClick,
+                                onViewAllClick = { onCategoryViewAllClick(HomeCategory.MOVIES) },
+                                accentColor = VortexCyan
+                            )
+                        }
+                    }
+
+                    // Popular TV Shows
+                    if (feedState.tvShows.isNotEmpty()) {
+                        item(key = "cat_popular_tv") {
+                            MediaCarousel(
+                                title = "Popular TV Shows",
+                                items = feedState.tvShows,
+                                onItemClick = onMediaClick,
+                                onViewAllClick = { onCategoryViewAllClick(HomeCategory.TV_SHOWS) },
+                                accentColor = VortexPink
+                            )
+                        }
+                    }
+
+                    // Now Streaming & New
+                    if (feedState.nowPlaying.isNotEmpty()) {
+                        item(key = "cat_now_playing") {
+                            MediaCarousel(
+                                title = "Now Streaming & New",
+                                items = feedState.nowPlaying,
+                                onItemClick = onMediaClick,
+                                onViewAllClick = { onCategoryViewAllClick(HomeCategory.NOW_PLAYING) },
+                                accentColor = VortexPurpleLight
+                            )
+                        }
+                    }
+
                     // Category: Anime
                     item(key = "cat_anime") {
                         MediaCarousel(
-                            title = "Anime",
+                            title = "Anime Collection",
                             items = feedState.anime,
                             onItemClick = onMediaClick,
                             onViewAllClick = { onCategoryViewAllClick(HomeCategory.ANIME) },
@@ -446,7 +513,17 @@ fun CategoryNavigationBar(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HomeCategory.values().forEach { category ->
+        val navCategories = listOf(
+            HomeCategory.ALL,
+            HomeCategory.ANIME,
+            HomeCategory.BOLLYWOOD,
+            HomeCategory.CARTOONS,
+            HomeCategory.DRAMA,
+            HomeCategory.HOLLYWOOD,
+            HomeCategory.MOVIES,
+            HomeCategory.TV_SHOWS
+        )
+        navCategories.forEach { category ->
             val isSelected = selectedCategory == category
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,

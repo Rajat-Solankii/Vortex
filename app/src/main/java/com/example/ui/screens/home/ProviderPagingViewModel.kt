@@ -37,8 +37,10 @@ class ProviderPagingViewModel(
             val result = repository.getMediaForProvider(currentProviderId!!, page)
 
             result.onSuccess { newItems ->
+                val existingIds = currentState.items.map { it.id }.toSet()
+                val uniqueNewItems = newItems.filter { it.id !in existingIds }
                 _state.value = currentState.copy(
-                    items = currentState.items + newItems,
+                    items = currentState.items + uniqueNewItems,
                     isLoading = false,
                     page = page + 1,
                     isEndOfPaginationReached = newItems.isEmpty()

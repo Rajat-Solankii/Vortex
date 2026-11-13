@@ -22,6 +22,9 @@ class UserPreferencesManager(private val context: Context) {
         val KEY_SELECTED_GENRES = stringSetPreferencesKey("selected_genres")
         val KEY_HIGH_REFRESH_RATE = booleanPreferencesKey("high_refresh_rate")
         val KEY_AMOLED_THEME = booleanPreferencesKey("amoled_theme")
+        val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+        val KEY_USE_DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
+        val KEY_RECENT_SEARCHES = stringSetPreferencesKey("recent_searches_set")
         val KEY_STREAM_RESOLUTION = stringPreferencesKey("stream_resolution")
         val KEY_DEFAULT_SERVER = stringPreferencesKey("default_server")
         val KEY_SEEK_INTERVAL = intPreferencesKey("seek_interval")
@@ -46,6 +49,9 @@ class UserPreferencesManager(private val context: Context) {
         val KEY_SAFE_SEARCH = booleanPreferencesKey("safe_search")
         val KEY_WATCH_REGION = stringPreferencesKey("watch_region")
         val KEY_DEFAULT_HOME_TAB = stringPreferencesKey("default_home_tab")
+        val KEY_DISPLAY_NAME = stringPreferencesKey("user_display_name")
+        val KEY_AVATAR_ID = stringPreferencesKey("user_avatar_id")
+        val KEY_CUSTOM_AVATAR_PATH = stringPreferencesKey("custom_avatar_path")
     }
 
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -79,12 +85,64 @@ class UserPreferencesManager(private val context: Context) {
     }
 
     val isAmoledTheme: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_AMOLED_THEME] ?: false
+        val mode = prefs[KEY_THEME_MODE]
+        if (mode != null) mode == "AMOLED" else (prefs[KEY_AMOLED_THEME] ?: false)
     }
 
     suspend fun setAmoledTheme(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_AMOLED_THEME] = enabled
+            prefs[KEY_THEME_MODE] = if (enabled) "AMOLED" else "Dark"
+        }
+    }
+
+    val themeMode: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_THEME_MODE] ?: if (prefs[KEY_AMOLED_THEME] == true) "AMOLED" else "Dark"
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_THEME_MODE] = mode
+            prefs[KEY_AMOLED_THEME] = mode == "AMOLED"
+        }
+    }
+
+    val isDynamicColor: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_USE_DYNAMIC_COLOR] ?: false
+    }
+
+    suspend fun setDynamicColor(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_USE_DYNAMIC_COLOR] = enabled
+        }
+    }
+
+    val recentSearches: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_RECENT_SEARCHES]?.toList() ?: emptyList()
+    }
+
+    suspend fun addRecentSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_RECENT_SEARCHES]?.toMutableSet() ?: mutableSetOf()
+            current.remove(trimmed)
+            val updated = mutableSetOf(trimmed).apply { addAll(current.take(9)) }
+            prefs[KEY_RECENT_SEARCHES] = updated
+        }
+    }
+
+    suspend fun removeRecentSearch(query: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_RECENT_SEARCHES]?.toMutableSet() ?: mutableSetOf()
+            current.remove(query.trim())
+            prefs[KEY_RECENT_SEARCHES] = current
+        }
+    }
+
+    suspend fun clearRecentSearches() {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_RECENT_SEARCHES] = emptySet()
         }
     }
 
@@ -325,6 +383,48 @@ class UserPreferencesManager(private val context: Context) {
     suspend fun setDefaultHomeTab(tab: String) {
         context.dataStore.edit { prefs ->
             prefs[KEY_DEFAULT_HOME_TAB] = tab
+        }
+    }
+
+    val displayName: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_DISPLAY_NAME] ?: "Vortex Explorer"
+    }
+
+    suspend fun setDisplayName(name: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_DISPLAY_NAME] = name
+        }
+    }
+
+    val avatarId: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AVATAR_ID] ?: "cosmic"
+    }
+
+    suspend fun setAvatarId(avatar: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_AVATAR_ID] = avatar
+        }
+    }
+
+    val customAvatarPath: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CUSTOM_AVATAR_PATH]
+    }
+
+    suspend fun setCustomAvatarPath(path: String?) {
+        context.dataStore.edit { prefs ->
+            if (path != null) {
+                prefs[KEY_CUSTOM_AVATAR_PATH] = path
+            } else {
+                prefs.remove(KEY_CUSTOM_AVATAR_PATH)
+            }
+        }
+    }
+
+    suspend fun resetProfile() {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_DISPLAY_NAME] = "Vortex Explorer"
+            prefs[KEY_AVATAR_ID] = "cosmic"
+            prefs.remove(KEY_CUSTOM_AVATAR_PATH)
         }
     }
 }

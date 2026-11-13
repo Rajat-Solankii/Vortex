@@ -451,7 +451,7 @@ private fun PlaybackSettingsContent(pm: UserPreferencesManager?) {
         SettingOptionSelector(
             label = "Default Stream Server",
             currentValue = defaultServer,
-            options = listOf("Server 1 (Auto CDN)", "Server 2 (Multi-Sub)", "Server 3 (Mirror)"),
+            options = listOf("Server 1", "Server 2 (Anime Rec)", "Server 3", "Server 4", "Server 5", "Server 6", "Server 7"),
             onSelect = { scope.launch { pm?.setDefaultServer(it) } }
         )
 
@@ -671,30 +671,42 @@ private fun DisplaySettingsContent(pm: UserPreferencesManager?, context: Context
 
 @Composable
 private fun AppearanceSettingsContent(pm: UserPreferencesManager?) {
-    val amoled by (pm?.isAmoledTheme?.collectAsStateWithLifecycle(initialValue = false)
+    val themeMode by (pm?.themeMode?.collectAsStateWithLifecycle(initialValue = "Dark")
+        ?: remember { mutableStateOf("Dark") })
+    val isDynamicColor by (pm?.isDynamicColor?.collectAsStateWithLifecycle(initialValue = false)
         ?: remember { mutableStateOf(false) })
-    val accent by (pm?.accentColor?.collectAsStateWithLifecycle(initialValue = "Vortex Cyan")
-        ?: remember { mutableStateOf("Vortex Cyan") })
+    val accent by (pm?.accentColor?.collectAsStateWithLifecycle(initialValue = "Cyber Purple")
+        ?: remember { mutableStateOf("Cyber Purple") })
     val navStyle by (pm?.navBarStyle?.collectAsStateWithLifecycle(initialValue = "Floating Expressive Pill")
         ?: remember { mutableStateOf("Floating Expressive Pill") })
     val posterDensity by (pm?.posterDensity?.collectAsStateWithLifecycle(initialValue = "Comfortable")
         ?: remember { mutableStateOf("Comfortable") })
     val scope = rememberCoroutineScope()
 
-    SettingsGroupCard(title = "COLOR THEME") {
-        SettingToggleRow(
-            title = "Pure AMOLED Black Theme",
-            subtitle = "Turns dark surfaces into true #000000 black to maximize battery savings on OLED panels",
-            checked = amoled,
-            onCheckedChange = { scope.launch { pm?.setAmoledTheme(it) } }
+    SettingsGroupCard(title = "COLOR THEME & APPEARANCE") {
+        SettingOptionSelector(
+            label = "Theme Mode",
+            currentValue = themeMode,
+            options = listOf("Dark", "AMOLED", "Light", "System"),
+            onSelect = { scope.launch { pm?.setThemeMode(it) } }
         )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Spacer(modifier = Modifier.height(14.dp))
+            SettingToggleRow(
+                title = "Material You Dynamic Color",
+                subtitle = "Derive app accent palette from your system wallpaper (Android Monet)",
+                checked = isDynamicColor,
+                onCheckedChange = { scope.launch { pm?.setDynamicColor(it) } }
+            )
+        }
 
         Spacer(modifier = Modifier.height(14.dp))
 
         SettingOptionSelector(
             label = "Accent Color",
             currentValue = accent,
-            options = listOf("Vortex Cyan", "Neon Purple", "Emerald", "Sunset Orange"),
+            options = listOf("Cyber Purple", "Vortex Cyan", "Emerald Green", "Neon Orange", "Rose Pink", "Pixel Blue"),
             onSelect = { scope.launch { pm?.setAccentColor(it) } }
         )
     }

@@ -3,6 +3,7 @@ package com.example.ui.screens.player
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
@@ -41,12 +42,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.example.ui.components.CastToTvBottomSheet
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -118,11 +125,49 @@ fun PlayerScreen(
     initialEpisode: Int = 1,
     repository: VortexRepository,
     userPreferencesManager: UserPreferencesManager? = null,
+    isInPipMode: Boolean = false,
+    onEnterPip: () -> Unit = {},
+    onTitleChanged: (String) -> Unit = {},
+    onVideoBoundsChanged: (android.graphics.Rect) -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val activity = context.findActivity()
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+
+    var isPipActive by remember { mutableStateOf(isInPipMode || (activity?.isInPictureInPictureMode == true)) }
+
+    // Synchronize isPipActive with incoming parameter
+    LaunchedEffect(isInPipMode) {
+        if (isInPipMode) {
+            isPipActive = true
+        } else if (activity?.isInPictureInPictureMode != true) {
+            isPipActive = false
+        }
+    }
+
+    // Direct listener on ComponentActivity for instantaneous PiP state transitions
+    DisposableEffect(activity) {
+        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
+            isPipActive = info.isInPictureInPictureMode
+        }
+        activity?.addOnPictureInPictureModeChangedListener(listener)
+        onDispose {
+            activity?.removeOnPictureInPictureModeChangedListener(listener)
+        }
+    }
+
+    // Determine if effectively in PiP using all authoritative system signals:
+    // 1. isPipActive (instantaneous local state)
+    // 2. isInPipMode parameter from MainActivity
+    // 3. Direct Activity.isInPictureInPictureMode
+    // 4. Compact window dimensions check (PiP is always < 300dp height and < 450dp width)
+    val isEffectivelyInPip = isPipActive ||
+        isInPipMode ||
+        (activity?.isInPictureInPictureMode == true) ||
+        (configuration.screenHeightDp < 300 && configuration.screenWidthDp < 450)
 
     // Reactive current playing media state (allowing instant in-player recommendation shifts)
     var currentMediaId by remember(mediaId) { mutableIntStateOf(mediaId) }
@@ -130,6 +175,12 @@ fun PlayerScreen(
     var currentTitle by remember(title) { mutableStateOf(title) }
     var currentPoster by remember(posterPath) { mutableStateOf(posterPath) }
     var currentBackdrop by remember(backdropPath) { mutableStateOf(backdropPath) }
+    var currentEmbedUrl by remember { mutableStateOf("") }
+    var showCastDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentTitle) {
+        onTitleChanged(currentTitle)
+    }
 
     val defaultServerPref by (userPreferencesManager?.defaultServer?.collectAsStateWithLifecycle(initialValue = "Server 1")
         ?: remember { mutableStateOf("Server 1") })
@@ -207,6 +258,31 @@ fun PlayerScreen(
         }
     }
 
+    // Wake-Lock: Keep screen on while playing video
+    DisposableEffect(Unit) {
+        val activity = context.findActivity()
+        activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Picture-in-Picture mode handler
+    fun enterPip() {
+        // Trigger PiP through onEnterPip() which calls enterPictureInPictureMode().
+        // Do not force isPipActive = true prematurely so the system smoothly transitions
+        // from the existing player bounds without offset artifacts.
+        onEnterPip()
+    }
+
+    var savedPositionMs by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    LaunchedEffect(currentMediaId) {
+        val history = repository.getWatchHistoryById(currentMediaId)
+        if (history != null && history.lastPositionMs > 5000L && (history.durationMs == 0L || history.lastPositionMs < history.durationMs * 0.90f)) {
+            savedPositionMs = history.lastPositionMs
+        }
+    }
+
     // Restore portrait/default orientation on exit
     DisposableEffect(Unit) {
         onDispose {
@@ -268,10 +344,10 @@ fun PlayerScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(VortexDarkBackground)
+            .background(if (isEffectivelyInPip) Color.Black else VortexDarkBackground)
     ) {
-        // Top Player Bar (Hidden in Fullscreen Landscape for total immersion)
-        if (!isFullscreen) {
+        // Top Player Bar (Hidden in Fullscreen Landscape and PiP mode)
+        if (!isFullscreen && !isEffectivelyInPip) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -311,6 +387,30 @@ fun PlayerScreen(
                     )
                 }
 
+                // Cast Screen / Smart View / Direct TV Cast Button
+                IconButton(
+                    onClick = { showCastDialog = true },
+                    modifier = Modifier.testTag("top_cast_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cast,
+                        contentDescription = "Cast to TV",
+                        tint = Color.White
+                    )
+                }
+
+                // Picture-in-Picture Button
+                IconButton(
+                    onClick = { enterPip() },
+                    modifier = Modifier.testTag("top_pip_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PictureInPicture,
+                        contentDescription = "Picture-in-Picture",
+                        tint = Color.White
+                    )
+                }
+
                 // Fullscreen Landscape Toggle Button
                 IconButton(
                     onClick = { isFullscreen = true },
@@ -338,35 +438,56 @@ fun PlayerScreen(
         }
 
         // The Video Viewport:
-        // In Fullscreen Landscape -> fills 100% of the display.
+        // In PiP Mode or Fullscreen Landscape -> fills 100% of the display container with black background.
         // In Normal Portrait -> standard 16:9 aspect ratio box.
+        val viewportModifier = if (isEffectivelyInPip || isFullscreen) {
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .background(Color.Black)
+        }
+
         Box(
-            modifier = if (isFullscreen) {
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .background(Color.Black)
-            }
-        ) {
-            key(currentMediaId, selectedServer, selectedSeason, selectedEpisode, reloadKey) {
-                val embedUrl = remember(selectedServer, currentMediaId, currentMediaType, selectedSeason, selectedEpisode) {
-                    StreamUrlBuilder.buildWebEmbedUrl(
-                        server = selectedServer,
-                        mediaId = currentMediaId,
-                        mediaType = currentMediaType,
-                        season = selectedSeason,
-                        episode = selectedEpisode
+            modifier = viewportModifier.onGloballyPositioned { coordinates ->
+                if (!isEffectivelyInPip) {
+                    val bounds = coordinates.boundsInWindow()
+                    onVideoBoundsChanged(
+                        android.graphics.Rect(
+                            bounds.left.toInt(),
+                            bounds.top.toInt(),
+                            bounds.right.toInt(),
+                            bounds.bottom.toInt()
+                        )
                     )
                 }
+            }
+        ) {
+            val embedUrl = remember(selectedServer, currentMediaId, currentMediaType, selectedSeason, selectedEpisode) {
+                StreamUrlBuilder.buildWebEmbedUrl(
+                    server = selectedServer,
+                    mediaId = currentMediaId,
+                    mediaType = currentMediaType,
+                    season = selectedSeason,
+                    episode = selectedEpisode
+                )
+            }
+            LaunchedEffect(embedUrl) {
+                currentEmbedUrl = embedUrl
+            }
+
+            key(currentMediaId, selectedServer, selectedSeason, selectedEpisode, reloadKey) {
                 WebStreamPlayer(
                     embedUrl = embedUrl,
                     server = selectedServer,
+                    isInPipMode = isEffectivelyInPip,
                     onToggleFullscreen = { shouldBeFullscreen ->
-                        isFullscreen = shouldBeFullscreen
+                        if (!isEffectivelyInPip) {
+                            isFullscreen = shouldBeFullscreen
+                        }
                     },
                     onRedirectBlocked = {
                         blockedAdsCount++
@@ -374,31 +495,58 @@ fun PlayerScreen(
                 )
             }
 
-            // Floating Fullscreen / Landscape Toggle Button on bottom corner of video
-            Surface(
-                shape = CircleShape,
-                color = Color.Black.copy(alpha = 0.65f),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(12.dp)
-                    .size(40.dp)
-            ) {
-                IconButton(
-                    onClick = { isFullscreen = !isFullscreen },
-                    modifier = Modifier.testTag("viewport_fullscreen_button")
+            // Floating Fullscreen / Landscape Toggle Button & Fullscreen Cast Button (Hidden in PiP mode)
+            if (!isEffectivelyInPip) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                        contentDescription = if (isFullscreen) "Exit Fullscreen" else "Fullscreen Landscape",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    if (isFullscreen) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.65f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            IconButton(
+                                onClick = { showCastDialog = true },
+                                modifier = Modifier.testTag("fullscreen_cast_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Cast,
+                                    contentDescription = "Cast to TV",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.65f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        IconButton(
+                            onClick = { isFullscreen = !isFullscreen },
+                            modifier = Modifier.testTag("viewport_fullscreen_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = if (isFullscreen) "Exit Fullscreen" else "Fullscreen Landscape",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // Server and Source Controls & Recommendations (Hidden in Landscape Fullscreen mode)
-        if (!isFullscreen) {
+        // Server and Source Controls & Recommendations (Hidden in Landscape Fullscreen mode and Picture-in-Picture mode)
+        if (!isFullscreen && !isEffectivelyInPip) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -494,6 +642,61 @@ fun PlayerScreen(
                                 containerColor = VortexDarkSurfaceVariant
                             ),
                             modifier = Modifier.testTag("server_chip_${server.name.lowercase()}")
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Watch on TV Button / Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = VortexPurple.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, VortexPurple.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCastDialog = true }
+                        .testTag("watch_on_tv_banner")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(VortexPurple.copy(alpha = 0.3f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tv,
+                                contentDescription = "Cast to TV",
+                                tint = VortexPurpleLight,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Watch on TV",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                            Text(
+                                text = "Cast to Smart TV, Chromecast, Roku, or Fire TV",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = VortexTextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.Cast,
+                            contentDescription = null,
+                            tint = VortexPurpleLight,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -713,6 +916,25 @@ fun PlayerScreen(
             }
         }
     }
+
+    // Cast to TV Bottom Sheet Dialog
+    if (showCastDialog) {
+        val targetUrl = currentEmbedUrl.ifEmpty {
+            StreamUrlBuilder.buildWebEmbedUrl(
+                server = selectedServer,
+                mediaId = currentMediaId,
+                mediaType = currentMediaType,
+                season = selectedSeason,
+                episode = selectedEpisode
+            )
+        }
+        CastToTvBottomSheet(
+            title = currentTitle,
+            streamUrl = targetUrl,
+            posterUrl = currentPoster,
+            onDismissRequest = { showCastDialog = false }
+        )
+    }
 }
 
 /**
@@ -725,6 +947,7 @@ fun PlayerScreen(
 fun WebStreamPlayer(
     embedUrl: String,
     server: StreamServer,
+    isInPipMode: Boolean = false,
     onToggleFullscreen: (Boolean) -> Unit = {},
     onRedirectBlocked: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -751,6 +974,20 @@ fun WebStreamPlayer(
         }
     }
 
+    // Proactively apply and re-apply PiP CSS/JS adjustments when entering/exiting PiP mode
+    LaunchedEffect(isInPipMode) {
+        webViewRef?.let { wv ->
+            wv.requestLayout()
+            wv.evaluateJavascript(AdBlocker.buildPipAdjustmentJs(isInPipMode), null)
+            if (isInPipMode) {
+                // Secondary trigger after the window resize animation settles
+                kotlinx.coroutines.delay(250)
+                wv.requestLayout()
+                wv.evaluateJavascript(AdBlocker.buildPipAdjustmentJs(true), null)
+            }
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -761,6 +998,7 @@ fun WebStreamPlayer(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                     setBackgroundColor(0xFF000000.toInt())
+                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
                     settings.apply {
                         javaScriptEnabled = true
@@ -863,6 +1101,7 @@ fun WebStreamPlayer(
                             super.onPageFinished(view, url)
                             isBuffering = false
                             view?.evaluateJavascript(AdBlocker.ANTI_REDIRECT_JS, null)
+                            view?.evaluateJavascript(AdBlocker.buildPipAdjustmentJs(isInPipMode), null)
                         }
                     }
 
@@ -871,12 +1110,13 @@ fun WebStreamPlayer(
                 }
             },
             update = { webView ->
-                // Handled cleanly via remember key
+                webView.requestLayout()
+                webView.evaluateJavascript(AdBlocker.buildPipAdjustmentJs(isInPipMode), null)
             }
         )
 
-        // Loading and server status overlay
-        if (isBuffering) {
+        // Loading and server status overlay (hidden in PiP mode)
+        if (isBuffering && !isInPipMode) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -898,6 +1138,50 @@ fun WebStreamPlayer(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Opens system Screen Casting / Mirroring settings with graceful fallback.
+ * Checks whether ACTION_CAST_SETTINGS can be resolved; if not, falls back to general system settings.
+ * Displays an informative Toast guiding the user to Quick Settings > Cast.
+ */
+fun openCastSettings(context: Context) {
+    try {
+        val castIntent = Intent(android.provider.Settings.ACTION_CAST_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (castIntent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(castIntent)
+        } else {
+            val fallbackIntent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallbackIntent)
+        }
+        android.widget.Toast.makeText(
+            context,
+            "Use Cast Settings or Quick Settings > Cast to mirror your screen to your TV",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+    } catch (e: Exception) {
+        try {
+            val fallbackIntent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallbackIntent)
+            android.widget.Toast.makeText(
+                context,
+                "Open Quick Settings > Cast to mirror your screen to your TV",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(
+                context,
+                "Cast screen settings are not available on this device",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 }

@@ -1,12 +1,19 @@
 package com.example.ui.theme
 
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 @Immutable
 data class VortexPalette(
@@ -19,39 +26,55 @@ data class VortexPalette(
     val surfaceVariant: Color,
     val card: Color,
     val cardBorder: Color,
-    val textPrimary: Color = VortexTextPrimary,
-    val textSecondary: Color = VortexTextSecondary,
-    val textMuted: Color = VortexTextMuted
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textMuted: Color,
+    val isDark: Boolean = true
 )
 
 fun resolveVortexPalette(
-    isAmoled: Boolean,
-    accentColorName: String
+    themeMode: String = "Dark",
+    accentColorName: String = "Cyber Purple",
+    systemInDark: Boolean = true
 ): VortexPalette {
+    val effectiveMode = when (themeMode) {
+        "AMOLED" -> "AMOLED"
+        "Light" -> "Light"
+        "Dark" -> "Dark"
+        "System" -> if (systemInDark) "Dark" else "Light"
+        else -> "Dark"
+    }
+
     val (primary, primaryDeep, primaryLight, primaryGlow) = when (accentColorName) {
         "Vortex Cyan" -> QuadColor(
-            Color(0xFF00E5FF),
-            Color(0xFF00B0FF),
-            Color(0xFF80D8FF),
-            Color(0x6600E5FF)
+            VortexCyan,
+            VortexCyanDeep,
+            VortexCyanLight,
+            VortexCyanGlow
         )
         "Emerald Green" -> QuadColor(
-            Color(0xFF00E676),
-            Color(0xFF00C853),
-            Color(0xFF69F0AE),
-            Color(0x6600E676)
+            EmeraldGreen,
+            EmeraldGreenDeep,
+            EmeraldGreenLight,
+            EmeraldGreenGlow
         )
         "Neon Orange" -> QuadColor(
-            Color(0xFFFF9100),
-            Color(0xFFFF6D00),
-            Color(0xFFFFD180),
-            Color(0x66FF9100)
+            NeonOrange,
+            NeonOrangeDeep,
+            NeonOrangeLight,
+            NeonOrangeGlow
         )
         "Rose Pink" -> QuadColor(
-            Color(0xFFFF4081),
-            Color(0xFFF50057),
-            Color(0xFFFF80AB),
-            Color(0x66FF4081)
+            RosePink,
+            RosePinkDeep,
+            RosePinkLight,
+            RosePinkGlow
+        )
+        "Pixel Blue" -> QuadColor(
+            PixelBlue,
+            PixelBlueDeep,
+            PixelBlueLight,
+            PixelBlueGlow
         )
         else -> QuadColor( // Default "Cyber Purple"
             VortexPurple,
@@ -61,71 +84,130 @@ fun resolveVortexPalette(
         )
     }
 
-    val (bg, surface, surfaceVar, card, cardBorder) = if (isAmoled) {
-        QuintColor(
-            Color(0xFF000000), // Pure Pitch Black for AMOLED
-            Color(0xFF08080C),
-            Color(0xFF101018),
-            Color(0xFF0C0C14),
-            Color(0xFF1F1E2E)
+    return when (effectiveMode) {
+        "AMOLED" -> VortexPalette(
+            primary = primary,
+            primaryDeep = primaryDeep,
+            primaryLight = primaryLight,
+            primaryGlow = primaryGlow,
+            background = VortexTrueBlack,
+            surface = VortexAmoledSurface,
+            surfaceVariant = VortexAmoledSurfaceVariant,
+            card = VortexAmoledCard,
+            cardBorder = VortexAmoledCardBorder,
+            textPrimary = VortexTextPrimary,
+            textSecondary = VortexTextSecondary,
+            textMuted = VortexTextMuted,
+            isDark = true
         )
-    } else {
-        QuintColor(
-            VortexDarkBackground, // Atmospheric Dark #0A0A0F
-            VortexDarkSurface,
-            VortexDarkSurfaceVariant,
-            VortexDarkCard,
-            VortexDarkCardBorder
+        "Light" -> VortexPalette(
+            primary = primary,
+            primaryDeep = primaryDeep,
+            primaryLight = primaryLight,
+            primaryGlow = primaryGlow,
+            background = VortexLightBackground,
+            surface = VortexLightSurface,
+            surfaceVariant = VortexLightSurfaceVariant,
+            card = VortexLightCard,
+            cardBorder = VortexLightCardBorder,
+            textPrimary = VortexLightTextPrimary,
+            textSecondary = VortexLightTextSecondary,
+            textMuted = VortexLightTextMuted,
+            isDark = false
+        )
+        else -> VortexPalette( // Cinematic Dark
+            primary = primary,
+            primaryDeep = primaryDeep,
+            primaryLight = primaryLight,
+            primaryGlow = primaryGlow,
+            background = VortexDarkBackground,
+            surface = VortexDarkSurface,
+            surfaceVariant = VortexDarkSurfaceVariant,
+            card = VortexDarkCard,
+            cardBorder = VortexDarkCardBorder,
+            textPrimary = VortexTextPrimary,
+            textSecondary = VortexTextSecondary,
+            textMuted = VortexTextMuted,
+            isDark = true
         )
     }
-
-    return VortexPalette(
-        primary = primary,
-        primaryDeep = primaryDeep,
-        primaryLight = primaryLight,
-        primaryGlow = primaryGlow,
-        background = bg,
-        surface = surface,
-        surfaceVariant = surfaceVar,
-        card = card,
-        cardBorder = cardBorder
-    )
 }
 
 private data class QuadColor(val c1: Color, val c2: Color, val c3: Color, val c4: Color)
-private data class QuintColor(val c1: Color, val c2: Color, val c3: Color, val c4: Color, val c5: Color)
 
 val LocalVortexColors = staticCompositionLocalOf {
-    resolveVortexPalette(isAmoled = false, accentColorName = "Cyber Purple")
+    resolveVortexPalette(themeMode = "Dark", accentColorName = "Cyber Purple")
 }
 
 @Composable
 fun VortexTheme(
     isAmoled: Boolean = false,
+    themeMode: String = if (isAmoled) "AMOLED" else "Dark",
     accentColor: String = "Cyber Purple",
+    useDynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val palette = resolveVortexPalette(isAmoled = isAmoled, accentColorName = accentColor)
+    val systemInDark = isSystemInDarkTheme()
+    val context = LocalContext.current
 
-    val colorScheme = darkColorScheme(
-        primary = palette.primary,
-        onPrimary = Color.White,
-        primaryContainer = palette.primaryDeep,
-        onPrimaryContainer = Color.White,
-        secondary = palette.primaryLight,
-        onSecondary = VortexTrueBlack,
-        secondaryContainer = palette.surfaceVariant,
-        onSecondaryContainer = palette.primaryLight,
-        tertiary = VortexCyan,
-        onTertiary = VortexTrueBlack,
-        background = palette.background,
-        onBackground = palette.textPrimary,
-        surface = palette.surface,
-        onSurface = palette.textPrimary,
-        surfaceVariant = palette.surfaceVariant,
-        onSurfaceVariant = palette.textSecondary,
-        outline = palette.cardBorder
+    val effectiveMode = when (themeMode) {
+        "AMOLED" -> "AMOLED"
+        "Light" -> "Light"
+        "Dark" -> "Dark"
+        "System" -> if (systemInDark) "Dark" else "Light"
+        else -> if (isAmoled) "AMOLED" else "Dark"
+    }
+
+    val isDark = effectiveMode != "Light"
+    val palette = resolveVortexPalette(
+        themeMode = effectiveMode,
+        accentColorName = accentColor,
+        systemInDark = systemInDark
     )
+
+    val colorScheme: ColorScheme = if (useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else if (isDark) {
+        darkColorScheme(
+            primary = palette.primary,
+            onPrimary = Color.White,
+            primaryContainer = palette.primaryDeep,
+            onPrimaryContainer = Color.White,
+            secondary = palette.primaryLight,
+            onSecondary = VortexTrueBlack,
+            secondaryContainer = palette.surfaceVariant,
+            onSecondaryContainer = palette.primaryLight,
+            tertiary = VortexCyan,
+            onTertiary = VortexTrueBlack,
+            background = palette.background,
+            onBackground = palette.textPrimary,
+            surface = palette.surface,
+            onSurface = palette.textPrimary,
+            surfaceVariant = palette.surfaceVariant,
+            onSurfaceVariant = palette.textSecondary,
+            outline = palette.cardBorder
+        )
+    } else {
+        lightColorScheme(
+            primary = palette.primary,
+            onPrimary = Color.White,
+            primaryContainer = palette.primaryLight.copy(alpha = 0.25f),
+            onPrimaryContainer = palette.primaryDeep,
+            secondary = palette.primaryDeep,
+            onSecondary = Color.White,
+            secondaryContainer = palette.surfaceVariant,
+            onSecondaryContainer = palette.primaryDeep,
+            tertiary = VortexCyanDeep,
+            onTertiary = Color.White,
+            background = palette.background,
+            onBackground = palette.textPrimary,
+            surface = palette.surface,
+            onSurface = palette.textPrimary,
+            surfaceVariant = palette.surfaceVariant,
+            onSurfaceVariant = palette.textSecondary,
+            outline = palette.cardBorder
+        )
+    }
 
     CompositionLocalProvider(LocalVortexColors provides palette) {
         MaterialTheme(
@@ -143,5 +225,9 @@ fun MyApplicationTheme(
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    VortexTheme(content = content)
+    VortexTheme(
+        themeMode = if (darkTheme) "Dark" else "Light",
+        useDynamicColor = dynamicColor,
+        content = content
+    )
 }

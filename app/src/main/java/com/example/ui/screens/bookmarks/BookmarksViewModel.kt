@@ -20,13 +20,21 @@ class BookmarksViewModel(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            repository.bookmarksFlow.collect { localList ->
+                _bookmarks.value = localList
+                _isLoading.value = false
+            }
+        }
         loadBookmarks()
     }
 
     fun loadBookmarks() {
         viewModelScope.launch {
-            _isLoading.value = true
-            _bookmarks.value = repository.getBookmarks()
+            val list = repository.getBookmarks()
+            if (list.isNotEmpty()) {
+                _bookmarks.value = list
+            }
             _isLoading.value = false
         }
     }

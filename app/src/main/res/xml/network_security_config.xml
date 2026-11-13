@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- Explicit domain overrides for streaming media CDNs if necessary -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.watchvortex.me</domain>
+        <domain includeSubdomains="true">vortex-proxy-six.vercel.app</domain>
+        <domain includeSubdomains="true">api.themoviedb.org</domain>
+        <domain includeSubdomains="true">image.tmdb.org</domain>
+        <domain includeSubdomains="true">api.github.com</domain>
+        <domain includeSubdomains="true">raw.githubusercontent.com</domain>
+    </domain-config>
+</network-security-config>

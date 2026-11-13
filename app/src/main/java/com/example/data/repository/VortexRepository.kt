@@ -15,6 +15,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class VortexRepository(
@@ -27,6 +28,20 @@ class VortexRepository(
 
     private val _watchHistory = kotlinx.coroutines.flow.MutableStateFlow<List<WatchHistoryEntity>>(emptyList())
     val watchHistory: Flow<List<WatchHistoryEntity>> = _watchHistory
+
+    val bookmarksFlow: Flow<List<Bookmark>> = bookmarkDao.getAllBookmarks().map { list ->
+        list.map { entity ->
+            Bookmark(
+                id = null,
+                userId = null,
+                mediaId = entity.mediaId,
+                mediaType = entity.mediaType,
+                title = entity.title,
+                posterPath = entity.posterPath,
+                createdAt = null
+            )
+        }
+    }
 
     suspend fun refreshWatchHistory() = withContext(Dispatchers.IO) {
         runCatching {
@@ -343,6 +358,40 @@ class VortexRepository(
         }
     }
 
+    suspend fun getTopRated(isTv: Boolean = false, page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val path = if (isTv) "tv/top_rated" else "movie/top_rated"
+            val response = apiService.getMediaList(path = path, page = page, includeAdult = false)
+            ContentFilter.filterDomain(response.results.map { it.toDomain(if (isTv) MediaType.TV else MediaType.MOVIE) })
+        }.recoverCatching {
+            emptyList()
+        }
+    }
+
+    suspend fun getNowPlaying(page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = apiService.getMediaList(path = "movie/now_playing", page = page, includeAdult = false)
+            ContentFilter.filterDomain(response.results.map { it.toDomain(MediaType.MOVIE) })
+        }.recoverCatching {
+            emptyList()
+        }
+    }
+
+    suspend fun getMediaByGenre(genreId: Int, isTv: Boolean = false, page: Int = 1): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val path = if (isTv) "discover/tv" else "discover/movie"
+            val response = apiService.getMediaList(
+                path = path,
+                page = page,
+                includeAdult = false,
+                extraQueries = mapOf("with_genres" to genreId.toString(), "sort_by" to "popularity.desc")
+            )
+            ContentFilter.filterDomain(response.results.map { it.toDomain(if (isTv) MediaType.TV else MediaType.MOVIE) })
+        }.recoverCatching {
+            emptyList()
+        }
+    }
+
     suspend fun getRecommendations(mediaId: Int, mediaType: MediaType): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
         runCatching {
             val recPath = if (mediaType == MediaType.TV) "tv/$mediaId/recommendations" else "movie/$mediaId/recommendations"
@@ -369,6 +418,20 @@ class VortexRepository(
             val durationText = dto.runtime?.let { "${it / 60}h ${it % 60}m" } ?: "Movie"
             val genreNames = dto.genres?.map { it.name } ?: emptyList()
 
+            val creditsResult = runCatching { apiService.getCredits(path = "movie/$id/credits") }.getOrNull()
+            val castMembers = creditsResult?.cast?.take(15)?.mapNotNull { c ->
+                val profileUrl = if (!c.profilePath.isNullOrBlank()) "https://image.tmdb.org/t/p/w185${c.profilePath}" else ""
+                com.example.data.model.CastMember(
+                    id = c.id,
+                    name = c.name ?: "Unknown",
+                    character = c.character ?: "",
+                    profileUrl = profileUrl
+                )
+            } ?: emptyList()
+
+            val videosResult = runCatching { apiService.getVideos(path = "movie/$id/videos") }.getOrNull()
+            val trailerKey = videosResult?.results?.firstOrNull { it.site.equals("YouTube", ignoreCase = true) && (it.type.equals("Trailer", ignoreCase = true) || it.type.equals("Teaser", ignoreCase = true)) }?.key
+
             MediaDetail(
                 id = dto.id,
                 title = dto.title ?: "Untitled Movie",
@@ -382,7 +445,10 @@ class VortexRepository(
                 tagline = dto.tagline ?: "",
                 genres = genreNames,
                 rawPosterPath = dto.posterPath,
-                rawBackdropPath = dto.backdropPath
+                rawBackdropPath = dto.backdropPath,
+                cast = castMembers,
+                trailerKey = trailerKey,
+                voteCount = dto.voteCount ?: 0
             )
         }.recoverCatching {
             val item = getCuratedFallback().find { it.id == id }
@@ -438,6 +504,20 @@ class VortexRepository(
                 }
             }
 
+            val creditsResult = runCatching { apiService.getCredits(path = "tv/$id/credits") }.getOrNull()
+            val castMembers = creditsResult?.cast?.take(15)?.mapNotNull { c ->
+                val profileUrl = if (!c.profilePath.isNullOrBlank()) "https://image.tmdb.org/t/p/w185${c.profilePath}" else ""
+                com.example.data.model.CastMember(
+                    id = c.id,
+                    name = c.name ?: "Unknown",
+                    character = c.character ?: "",
+                    profileUrl = profileUrl
+                )
+            } ?: emptyList()
+
+            val videosResult = runCatching { apiService.getVideos(path = "tv/$id/videos") }.getOrNull()
+            val trailerKey = videosResult?.results?.firstOrNull { it.site.equals("YouTube", ignoreCase = true) && (it.type.equals("Trailer", ignoreCase = true) || it.type.equals("Teaser", ignoreCase = true)) }?.key
+
             MediaDetail(
                 id = dto.id,
                 title = dto.name ?: "Untitled Series",
@@ -452,7 +532,10 @@ class VortexRepository(
                 genres = genreNames,
                 rawPosterPath = dto.posterPath,
                 rawBackdropPath = dto.backdropPath,
-                seasons = finalSeasons
+                seasons = finalSeasons,
+                cast = castMembers,
+                trailerKey = trailerKey,
+                voteCount = dto.voteCount ?: 0
             )
         }.recoverCatching {
             val item = getCuratedFallback().find { it.id == id }
@@ -543,6 +626,10 @@ class VortexRepository(
                 it.title.contains(query, ignoreCase = true) || it.overview.contains(query, ignoreCase = true)
             }
         }
+    }
+
+    suspend fun getWatchHistoryById(id: Int): WatchHistoryEntity? = withContext(Dispatchers.IO) {
+        watchHistoryDao.getWatchHistoryById(id)
     }
 
     suspend fun saveWatchProgress(

@@ -246,17 +246,38 @@ fun HistoryScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = if (item.mediaType == "tv") {
-                                        val s = item.seasonNumber ?: 1
-                                        val e = item.episodeNumber ?: 1
-                                        "Season $s • Episode $e"
-                                    } else "Full Feature Film",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        color = colors.primaryLight,
-                                        fontSize = 11.sp
+                                val isCompleted = item.durationMs > 0 && item.lastPositionMs >= item.durationMs * 0.90f
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (item.mediaType == "tv") {
+                                            val s = item.seasonNumber ?: 1
+                                            val e = item.episodeNumber ?: 1
+                                            "Season $s • Episode $e"
+                                        } else "Feature Film",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = colors.primaryLight,
+                                            fontSize = 11.sp
+                                        )
                                     )
-                                )
+                                    if (isCompleted) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFF1B5E20).copy(alpha = 0.5f),
+                                            modifier = Modifier.padding(top = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = "COMPLETED",
+                                                color = Color(0xFF81C784),
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 9.sp
+                                                ),
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 val dateStr = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
                                     .format(Date(item.lastWatchedTimestamp))

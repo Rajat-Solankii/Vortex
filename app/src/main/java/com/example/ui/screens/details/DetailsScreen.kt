@@ -38,7 +38,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Clear
+import com.example.ui.components.CastToTvBottomSheet
+import com.example.ui.screens.player.StreamServer
+import com.example.ui.screens.player.StreamUrlBuilder
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
@@ -109,6 +113,7 @@ fun DetailsScreen(
     }
 
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showCastDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -199,6 +204,7 @@ fun DetailsScreen(
                         IconButton(
                             onClick = onBack,
                             modifier = Modifier
+                                .align(Alignment.TopStart)
                                 .statusBarsPadding()
                                 .padding(8.dp)
                                 .size(40.dp)
@@ -208,6 +214,24 @@ fun DetailsScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+
+                        // Cast to TV Button (Top Right)
+                        IconButton(
+                            onClick = { showCastDialog = true },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(8.dp)
+                                .size(40.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .testTag("details_cast_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Cast,
+                                contentDescription = "Cast to TV",
                                 tint = Color.White
                             )
                         }
@@ -313,6 +337,15 @@ fun DetailsScreen(
                                                     color = Color.White
                                                 )
                                             )
+                                            if (detail.voteCount > 0) {
+                                                Text(
+                                                    text = " (${detail.voteCount})",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        color = colors.textMuted,
+                                                        fontSize = 11.sp
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
                                     Spacer(modifier = Modifier.width(10.dp))
@@ -477,6 +510,33 @@ fun DetailsScreen(
                                     }
                                 }
 
+                                // Trailer Pill (if available)
+                                if (!detail.trailerKey.isNullOrBlank()) {
+                                    Surface(
+                                        color = colors.card,
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(1.dp, VortexGold.copy(alpha = 0.5f)),
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clickable {
+                                                val trailerIntent = Intent(
+                                                    Intent.ACTION_VIEW,
+                                                    Uri.parse("https://www.youtube.com/watch?v=${detail.trailerKey}")
+                                                )
+                                                context.startActivity(trailerIntent)
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = "Trailer",
+                                                tint = VortexGold,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
                                 // Share Pill
                                 Surface(
                                     color = colors.card,
@@ -505,6 +565,82 @@ fun DetailsScreen(
                                             modifier = Modifier.size(22.dp)
                                         )
                                     }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Watch on TV / Cast Option Banner Card
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = colors.primary.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showCastDialog = true }
+                                    .testTag("details_watch_on_tv_card")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(colors.primary.copy(alpha = 0.25f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Tv,
+                                            contentDescription = "Cast to TV",
+                                            tint = colors.primaryLight,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Watch on TV",
+                                                style = MaterialTheme.typography.titleSmall.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Surface(
+                                                color = colors.primary.copy(alpha = 0.3f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Smart View • Cast",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        color = colors.primaryLight,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    ),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "Mirror to Smart TV, Windows PC, Chromecast, or browser",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = colors.textSecondary,
+                                                fontSize = 12.sp
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Cast,
+                                        contentDescription = null,
+                                        tint = colors.primaryLight,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
 
@@ -544,47 +680,92 @@ fun DetailsScreen(
 
                             Spacer(modifier = Modifier.height(24.dp))
 
-                            // Source Engine Info Card
-                            Surface(
-                                color = colors.card,
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Tv,
-                                            contentDescription = null,
-                                            tint = colors.primaryLight,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Vortex Dual Player Engine",
-                                            style = MaterialTheme.typography.titleSmall.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = colors.textPrimary
-                                            )
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "Supports native embed web sources (VAPlayer, Videasy, NHDAPI) and direct Media3 ExoPlayer (.m3u8/.mp4) playback with auto-saved Watch History.",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = colors.textSecondary,
-                                            lineHeight = 18.sp
-                                        )
+                            // Top Cast Carousel
+                            if (detail.cast.isNotEmpty()) {
+                                Text(
+                                    text = "TOP CAST",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.2.sp,
+                                        color = colors.textMuted
                                     )
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                androidx.compose.foundation.lazy.LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(detail.cast) { actor ->
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.width(72.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(60.dp)
+                                                    .clip(CircleShape)
+                                                    .background(colors.surfaceVariant)
+                                            ) {
+                                                if (actor.profileUrl.isNotEmpty()) {
+                                                    AsyncImage(
+                                                        model = actor.profileUrl,
+                                                        contentDescription = actor.name,
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = actor.name,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = colors.textPrimary,
+                                                    fontSize = 11.sp
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                            Text(
+                                                text = actor.character,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    color = colors.textMuted,
+                                                    fontSize = 10.sp
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                        }
+                                    }
                                 }
+                                Spacer(modifier = Modifier.height(24.dp))
                             }
 
-                            Spacer(modifier = Modifier.height(48.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
                         }
                     }
                 }
             }
         }
+    }
+
+    if (showCastDialog && state is DetailsUiState.Success) {
+        val detail = (state as DetailsUiState.Success).detail
+        val streamUrl = StreamUrlBuilder.buildWebEmbedUrl(
+            server = StreamServer.SERVER1,
+            mediaId = detail.id,
+            mediaType = detail.mediaType,
+            season = 1,
+            episode = 1
+        )
+        CastToTvBottomSheet(
+            title = detail.title,
+            streamUrl = streamUrl,
+            posterUrl = detail.posterUrl.ifEmpty { detail.backdropUrl },
+            onDismissRequest = { showCastDialog = false }
+        )
     }
 }
 

@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -89,25 +92,29 @@ fun MediaCarousel(
                 Spacer(modifier = Modifier.weight(1f))
 
                 if (onViewAllClick != null) {
-                    Text(
-                        text = "View All",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            color = accentColor,
-                            fontWeight = FontWeight.SemiBold
-                        ),
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { onViewAllClick.invoke() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                } else {
-                    Text(
-                        text = "${items.size} titles",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = VortexTextSecondary,
-                            fontSize = 11.sp
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "View all",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = accentColor,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.5.sp
+                            )
                         )
-                    )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "View all $title",
+                            tint = accentColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
 

@@ -20,7 +20,11 @@ enum class HomeCategory(val title: String) {
     DRAMA("Drama"),
     HOLLYWOOD("Hollywood"),
     MOVIES("Movies"),
-    TV_SHOWS("TV Shows")
+    TV_SHOWS("TV Shows"),
+    TRENDING("Trending Now"),
+    TOP_RATED("Top Rated Movies"),
+    NOW_PLAYING("Now Streaming & New"),
+    TRENDING_TV("Binge-Worthy TV Series")
 }
 
 data class HomeFeedState(
@@ -29,6 +33,8 @@ data class HomeFeedState(
     val featuredHero: MediaItem? = null,
     val recommendedSliders: List<MediaItem> = emptyList(),
     val trending: List<MediaItem> = emptyList(),
+    val topRated: List<MediaItem> = emptyList(),
+    val nowPlaying: List<MediaItem> = emptyList(),
     val anime: List<MediaItem> = emptyList(),
     val bollywood: List<MediaItem> = emptyList(),
     val cartoons: List<MediaItem> = emptyList(),
@@ -70,6 +76,8 @@ class HomeViewModel(
             _feedState.value = _feedState.value.copy(isLoading = true, errorMessage = null)
 
             val trendingResult = repository.getTrending()
+            val topRatedResult = repository.getTopRated()
+            val nowPlayingResult = repository.getNowPlaying()
             val animeResult = repository.getAnime()
             val bollywoodResult = repository.getBollywood()
             val cartoonsResult = repository.getCartoons()
@@ -79,6 +87,8 @@ class HomeViewModel(
             val tvResult = repository.getTvShows()
 
             val trendingList = trendingResult.getOrDefault(emptyList())
+            val topRatedList = topRatedResult.getOrDefault(emptyList())
+            val nowPlayingList = nowPlayingResult.getOrDefault(emptyList())
             val animeList = animeResult.getOrDefault(emptyList())
             val bollywoodList = bollywoodResult.getOrDefault(emptyList())
             val cartoonsList = cartoonsResult.getOrDefault(emptyList())
@@ -99,6 +109,8 @@ class HomeViewModel(
                 featuredHero = hero,
                 recommendedSliders = sliderItems,
                 trending = trendingList,
+                topRated = topRatedList,
+                nowPlaying = nowPlayingList,
                 anime = animeList,
                 bollywood = bollywoodList,
                 cartoons = cartoonsList,

@@ -80,9 +80,9 @@ fun CategoryPagingScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
                     state = listState,
-                    contentPadding = PaddingValues(start = 10.dp, top = 8.dp, end = 10.dp, bottom = 32.dp),
+                    contentPadding = PaddingValues(start = 10.dp, top = 8.dp, end = 10.dp, bottom = 90.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(state.items, key = { _, item -> item.id }) { index, media ->

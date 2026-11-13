@@ -35,3 +35,19 @@
 # Coil
 -keep class coil.** { *; }
 -dontwarn coil.**
+
+# Google Cast Framework
+-keep class com.example.cast.** { *; }
+-keep class com.google.android.gms.cast.** { *; }
+-dontwarn com.google.android.gms.cast.**
+
+# Supabase & Ktor
+-keep class io.github.jan.supabase.** { *; }
+-keep class io.ktor.** { *; }
+-dontwarn io.github.jan.supabase.**
+-dontwarn io.ktor.**
+
+# WebView JavaScript Interface
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}

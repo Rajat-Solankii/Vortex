@@ -4,13 +4,19 @@ import com.example.data.model.update.UpdateCheckResult
 import com.example.data.update.AppUpdateDownloadManager
 import com.example.ui.components.AppUpdateBottomSheet
 
+import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -18,11 +24,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
@@ -68,9 +76,11 @@ import com.example.util.AdaptiveRefreshRateManager
 
 sealed interface Screen {
     data object Home : Screen
+    data object Discover : Screen
     data object Search : Screen
-    data object History : Screen
     data object Bookmarks : Screen
+    data object Profile : Screen
+    data object History : Screen
     data object Settings : Screen
 
     data class Details(
@@ -88,7 +98,9 @@ sealed interface Screen {
     ) : Screen
     data class CategoryFeed(val category: com.example.ui.screens.home.HomeCategory) : Screen
     data class ProviderFeed(val providerId: Int, val providerName: String) : Screen
+    data class GenreFeed(val genreId: Int, val genreName: String, val isTv: Boolean = false) : Screen
     data object AllProviders : Screen
+    data object AllCategories : Screen
 }
 
 enum class BottomNavTab(
@@ -97,10 +109,9 @@ enum class BottomNavTab(
     val unselectedIcon: ImageVector
 ) {
     HOME("Home", Icons.Filled.Home, Icons.Outlined.Home),
+    DISCOVER("Discover", Icons.Filled.Explore, Icons.Outlined.Explore),
     SEARCH("Search", Icons.Filled.Search, Icons.Outlined.Search),
-    HISTORY("History", Icons.Filled.History, Icons.Outlined.History),
-    BOOKMARKS("My List", Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
-    PROFILE("Settings", Icons.Filled.Person, Icons.Outlined.Person)
+    PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
 class MainActivity : ComponentActivity() {
@@ -108,6 +119,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var appContainer: AppContainer
     private lateinit var refreshRateManager: AdaptiveRefreshRateManager
     private val pendingDeepLink = mutableStateOf<Screen?>(null)
+
+    val isInPipMode = mutableStateOf(false)
+    var isPlayerActive: Boolean = false
+    var activePlayerTitle: String = ""
+    private var isAutoPipEnabled: Boolean = true
+    private var playerVideoBounds: android.graphics.Rect? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -119,27 +136,208 @@ class MainActivity : ComponentActivity() {
         refreshRateManager = AdaptiveRefreshRateManager(this)
         lifecycle.addObserver(refreshRateManager)
 
+        // Track Auto PiP preference and update system params
+        lifecycleScope.launch {
+            appContainer.userPreferencesManager.isAutoPip.collect {
+                isAutoPipEnabled = it
+                updateAutoPipParams()
+            }
+        }
+
+        // Listener for seamless PiP mode detection across all Android versions
+        addOnPictureInPictureModeChangedListener { info ->
+            handlePipModeTransition(info.isInPictureInPictureMode)
+        }
+
         handleIncomingIntent(intent)
 
         enableEdgeToEdge()
         setContent {
             val isAmoled by appContainer.userPreferencesManager.isAmoledTheme
                 .collectAsStateWithLifecycle(initialValue = false)
+            val themeMode by appContainer.userPreferencesManager.themeMode
+                .collectAsStateWithLifecycle(initialValue = "Dark")
+            val isDynamicColor by appContainer.userPreferencesManager.isDynamicColor
+                .collectAsStateWithLifecycle(initialValue = false)
             val accentColor by appContainer.userPreferencesManager.accentColor
                 .collectAsStateWithLifecycle(initialValue = "Cyber Purple")
+            val isInPip by isInPipMode
 
             VortexTheme(
                 isAmoled = isAmoled,
-                accentColor = accentColor
+                themeMode = themeMode,
+                accentColor = accentColor,
+                useDynamicColor = isDynamicColor
             ) {
                 VortexApp(
                     appContainer = appContainer,
                     refreshRateManager = refreshRateManager,
+                    isInPipMode = isInPip,
+                    onEnterPip = { enterPipMode() },
+                    onPlayerActiveStateChanged = { active, title ->
+                        isPlayerActive = active
+                        if (active) {
+                            updatePlayerPipParams(title)
+                        } else {
+                            disableAutoPip()
+                        }
+                    },
+                    onVideoBoundsChanged = { rect ->
+                        updatePlayerPipParams(activePlayerTitle, rect)
+                    },
                     initialDeepLinkScreen = pendingDeepLink.value,
                     onDeepLinkConsumed = { pendingDeepLink.value = null }
                 )
             }
         }
+    }
+
+    fun updatePlayerPipParams(title: String, sourceRectHint: android.graphics.Rect? = null) {
+        activePlayerTitle = title
+        isPlayerActive = true
+        if (sourceRectHint != null) {
+            playerVideoBounds = sourceRectHint
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val builder = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                playerVideoBounds?.let { rect ->
+                    if (!rect.isEmpty) {
+                        builder.setSourceRectHint(rect)
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    builder.setAutoEnterEnabled(isAutoPipEnabled)
+                    builder.setSeamlessResizeEnabled(true)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && title.isNotEmpty()) {
+                    builder.setTitle(title)
+                }
+                setPictureInPictureParams(builder.build())
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Failed to update PiP params: ${e.message}")
+            }
+        }
+    }
+
+    private fun updateAutoPipParams() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val builder = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .setAutoEnterEnabled(isPlayerActive && isAutoPipEnabled)
+                    .setSeamlessResizeEnabled(true)
+                playerVideoBounds?.let { rect ->
+                    if (!rect.isEmpty) {
+                        builder.setSourceRectHint(rect)
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activePlayerTitle.isNotEmpty()) {
+                    builder.setTitle(activePlayerTitle)
+                }
+                setPictureInPictureParams(builder.build())
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Failed to set auto PiP params: ${e.message}")
+            }
+        }
+    }
+
+    fun disableAutoPip() {
+        isPlayerActive = false
+        activePlayerTitle = ""
+        playerVideoBounds = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                setPictureInPictureParams(
+                    PictureInPictureParams.Builder()
+                        .setAutoEnterEnabled(false)
+                        .build()
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun enterPipMode() {
+        if (!isPlayerActive) return
+        isInPipMode.value = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val builder = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                playerVideoBounds?.let { rect ->
+                    if (!rect.isEmpty) {
+                        builder.setSourceRectHint(rect)
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    builder.setAutoEnterEnabled(isAutoPipEnabled)
+                    builder.setSeamlessResizeEnabled(true)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activePlayerTitle.isNotEmpty()) {
+                    builder.setTitle(activePlayerTitle)
+                }
+                enterPictureInPictureMode(builder.build())
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Failed to enter Picture-in-Picture mode: ${e.message}")
+            }
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (isPlayerActive && isAutoPipEnabled) {
+            enterPipMode()
+        }
+    }
+
+    private fun handlePipModeTransition(isInPip: Boolean) {
+        isInPipMode.value = isInPip
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val builder = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                if (isInPip) {
+                    // CRITICAL FIX FOR SAMSUNG GALAXY & ANDROID PIP:
+                    // Once inside PiP, the video view expands to fill the entire PiP window.
+                    // Leaving sourceRectHint set to the old portrait bounds causes Samsung One UI
+                    // and Android WindowManager to permanently offset the PiP surface by ~200px (leaving
+                    // a black gap at the top and clipping the bottom of the video player).
+                    // Clearing sourceRectHint to null once in PiP mode ensures full-window rendering!
+                    builder.setSourceRectHint(null)
+                } else {
+                    playerVideoBounds?.let { rect ->
+                        if (!rect.isEmpty) {
+                            builder.setSourceRectHint(rect)
+                        }
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    builder.setAutoEnterEnabled(isPlayerActive && isAutoPipEnabled)
+                    builder.setSeamlessResizeEnabled(true)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activePlayerTitle.isNotEmpty()) {
+                    builder.setTitle(activePlayerTitle)
+                }
+                setPictureInPictureParams(builder.build())
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Failed to update PiP params on transition: ${e.message}")
+            }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        handlePipModeTransition(isInPictureInPictureMode)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        handlePipModeTransition(isInPictureInPictureMode)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -203,6 +401,10 @@ class MainActivity : ComponentActivity() {
 fun VortexApp(
     appContainer: AppContainer,
     refreshRateManager: AdaptiveRefreshRateManager,
+    isInPipMode: Boolean = false,
+    onEnterPip: () -> Unit = {},
+    onPlayerActiveStateChanged: (Boolean, String) -> Unit = { _, _ -> },
+    onVideoBoundsChanged: (android.graphics.Rect) -> Unit = {},
     initialDeepLinkScreen: Screen? = null,
     onDeepLinkConsumed: () -> Unit = {}
 ) {
@@ -217,6 +419,24 @@ fun VortexApp(
 
     val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
     val currentScreen = backStack.lastOrNull() ?: Screen.Home
+    var selectedTab by remember { mutableStateOf(BottomNavTab.HOME) }
+
+    // Notify activity about player active state and title for PiP management
+    LaunchedEffect(currentScreen) {
+        val player = currentScreen as? Screen.Player
+        if (player != null) {
+            onPlayerActiveStateChanged(true, player.title)
+        } else {
+            onPlayerActiveStateChanged(false, "")
+        }
+        when (currentScreen) {
+            is Screen.Home -> selectedTab = BottomNavTab.HOME
+            is Screen.Discover -> selectedTab = BottomNavTab.DISCOVER
+            is Screen.Search -> selectedTab = BottomNavTab.SEARCH
+            is Screen.Profile -> selectedTab = BottomNavTab.PROFILE
+            else -> {}
+        }
+    }
 
     // User Preferences & Feature Toggles from DataStore
     val isOnboardingCompleted by userPreferencesManager.isOnboardingCompleted
@@ -251,7 +471,6 @@ fun VortexApp(
         navigateBack()
     }
 
-    var selectedTab by remember { mutableStateOf(BottomNavTab.HOME) }
     var isDeviceBlocked by remember { mutableStateOf(false) }
     val deviceId = remember { TelegramService.getDeviceId(context) }
 
@@ -300,19 +519,21 @@ fun VortexApp(
         return
     }
 
-    val showBottomNav = currentScreen is Screen.Home ||
-            currentScreen is Screen.Search ||
-            currentScreen is Screen.History ||
-            currentScreen is Screen.Bookmarks ||
-            currentScreen is Screen.Settings
+    val showBottomNav = !isInPipMode && (
+        currentScreen is Screen.Home ||
+        currentScreen is Screen.Discover ||
+        currentScreen is Screen.Search ||
+        currentScreen is Screen.Profile
+    )
 
     val isClassicNav = navBarStyle == "Classic Full Width"
     val colors = LocalVortexColors.current
+    val rootBackground = if (isInPipMode) androidx.compose.ui.graphics.Color.Black else colors.background
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.background)
+            .background(rootBackground)
     ) {
         // Main Screen Content with Transitions
         AnimatedContent(
@@ -392,7 +613,14 @@ fun VortexApp(
                             navigateTo(Screen.Details(media.id, media.mediaType))
                         },
                         onBack = {
-                            navigateBack()
+                            if (backStack.size > 1) {
+                                navigateBack()
+                            } else {
+                                // Search was opened as root destination from bottom navigation and no previous destination exists -> navigate to Home
+                                backStack.clear()
+                                backStack.add(Screen.Home)
+                                selectedTab = BottomNavTab.HOME
+                            }
                         }
                     )
                 }
@@ -427,6 +655,65 @@ fun VortexApp(
                         onBack = {
                             navigateBack()
                         }
+                    )
+                }
+
+                is Screen.Discover -> {
+                    com.example.ui.screens.discover.DiscoverScreen(
+                        repository = repository,
+                        onMediaClick = { media ->
+                            navigateTo(Screen.Details(media.id, media.mediaType))
+                        },
+                        onGenreClick = { genreId, genreName, isTv ->
+                            navigateTo(Screen.GenreFeed(genreId, genreName, isTv))
+                        },
+                        onViewAllCategoriesClick = {
+                            navigateTo(Screen.AllCategories)
+                        },
+                        onCategoryViewAllClick = { category ->
+                            navigateTo(Screen.CategoryFeed(category))
+                        },
+                        onSearchClick = {
+                            selectedTab = BottomNavTab.SEARCH
+                            navigateTo(Screen.Search)
+                        },
+                        onProviderClick = { id, name ->
+                            navigateTo(Screen.ProviderFeed(id, name))
+                        }
+                    )
+                }
+
+                is Screen.AllCategories -> {
+                    com.example.ui.screens.discover.AllCategoriesScreen(
+                        onGenreClick = { genreId, genreName, isTv ->
+                            navigateTo(Screen.GenreFeed(genreId, genreName, isTv))
+                        },
+                        onBackClick = {
+                            navigateBack()
+                        }
+                    )
+                }
+
+                is Screen.GenreFeed -> {
+                    com.example.ui.screens.discover.GenrePagingScreen(
+                        genreId = screen.genreId,
+                        genreName = screen.genreName,
+                        isTv = screen.isTv,
+                        repository = repository,
+                        onBackClick = { navigateBack() },
+                        onMediaClick = { media ->
+                            navigateTo(Screen.Details(media.id, media.mediaType))
+                        }
+                    )
+                }
+
+                is Screen.Profile -> {
+                    com.example.ui.screens.profile.ProfileScreen(
+                        repository = repository,
+                        userPreferencesManager = userPreferencesManager,
+                        onNavigateToHistory = { navigateTo(Screen.History) },
+                        onNavigateToBookmarks = { navigateTo(Screen.Bookmarks) },
+                        onNavigateToSettings = { navigateTo(Screen.Settings) }
                     )
                 }
 
@@ -477,6 +764,12 @@ fun VortexApp(
                         initialEpisode = screen.initialEpisode,
                         repository = repository,
                         userPreferencesManager = userPreferencesManager,
+                        isInPipMode = isInPipMode,
+                        onEnterPip = onEnterPip,
+                        onTitleChanged = { newTitle ->
+                            onPlayerActiveStateChanged(true, newTitle)
+                        },
+                        onVideoBoundsChanged = onVideoBoundsChanged,
                         onBack = {
                             navigateBack()
                         }
@@ -508,27 +801,28 @@ fun VortexApp(
                 selectedTab = selectedTab,
                 isClassic = isClassicNav,
                 onTabSelected = { tab ->
-                    selectedTab = tab
-                    val rootScreen = when (tab) {
-                        BottomNavTab.HOME -> Screen.Home
-                        BottomNavTab.SEARCH -> Screen.Search
-                        BottomNavTab.HISTORY -> Screen.History
-                        BottomNavTab.BOOKMARKS -> Screen.Bookmarks
-                        BottomNavTab.PROFILE -> Screen.Settings
+                    if (selectedTab != tab) {
+                        selectedTab = tab
+                        val rootScreen = when (tab) {
+                            BottomNavTab.HOME -> Screen.Home
+                            BottomNavTab.DISCOVER -> Screen.Discover
+                            BottomNavTab.SEARCH -> Screen.Search
+                            BottomNavTab.PROFILE -> Screen.Profile
+                        }
+                        backStack.clear()
+                        backStack.add(rootScreen)
                     }
-                    backStack.clear()
-                    backStack.add(rootScreen)
                 }
             )
         }
 
         // Real-Time FPS and Adaptive Refresh Rate HUD Overlay
-        if (isFpsOverlayEnabled) {
+        if (isFpsOverlayEnabled && !isInPipMode) {
             FpsStatsOverlay()
         }
 
         // In-App Update Installer Bottom Sheet
-        if (appUpdateAvailable != null) {
+        if (appUpdateAvailable != null && !isInPipMode) {
             AppUpdateBottomSheet(
                 release = appUpdateAvailable!!.release,
                 targetAsset = appUpdateAvailable!!.targetAsset,

@@ -71,7 +71,7 @@ fun ExpressiveFloatingNavBar(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BottomNavTab.values().forEach { tab ->
+                BottomNavTab.entries.forEach { tab ->
                     val isSelected = selectedTab == tab
                     val scale by animateFloatAsState(
                         targetValue = if (isSelected) 1.05f else 1.0f,
@@ -142,7 +142,7 @@ fun ExpressiveFloatingNavBar(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BottomNavTab.values().forEach { tab ->
+                BottomNavTab.entries.forEach { tab ->
                     val isSelected = selectedTab == tab
                     val scale by animateFloatAsState(
                         targetValue = if (isSelected) 1.08f else 1.0f,

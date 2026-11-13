@@ -21,15 +21,20 @@ android {
   }
 
   val uploadKeystore = file(System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks")
-  val hasUploadKey = uploadKeystore.exists() && !System.getenv("STORE_PASSWORD").isNullOrEmpty()
+  val storePass = System.getenv("STORE_PASSWORD") ?: if (uploadKeystore.exists()) "vortex123" else null
+  val keyPass = System.getenv("KEY_PASSWORD") ?: storePass
+  val keyAliasName = System.getenv("KEY_ALIAS") ?: "upload"
+  val hasUploadKey = uploadKeystore.exists() && !storePass.isNullOrEmpty()
 
   signingConfigs {
     if (hasUploadKey) {
       create("release") {
         storeFile = uploadKeystore
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
-        keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("STORE_PASSWORD")
+        storePassword = storePass
+        keyAlias = keyAliasName
+        keyPassword = keyPass
+        enableV1Signing = true
+        enableV2Signing = true
       }
     }
   }
@@ -110,6 +115,7 @@ dependencies {
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.exoplayer.hls)
+  implementation(libs.play.services.cast.framework)
   implementation(libs.converter.moshi)
   implementation(libs.supabase.gotrue)
   implementation(libs.supabase.postgrest)

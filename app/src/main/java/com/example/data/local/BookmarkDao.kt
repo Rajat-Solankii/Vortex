@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BookmarkDao {
     @Query("SELECT * FROM bookmarks ORDER BY addedTimestamp DESC")
+    fun getAllBookmarks(): Flow<List<BookmarkEntity>>
+
+    @Query("SELECT * FROM bookmarks ORDER BY addedTimestamp DESC")
     suspend fun getAllBookmarksList(): List<BookmarkEntity>
 
     @Query("SELECT * FROM bookmarks WHERE mediaId = :mediaId LIMIT 1")

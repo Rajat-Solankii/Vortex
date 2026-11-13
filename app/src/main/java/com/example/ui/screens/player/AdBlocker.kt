@@ -78,14 +78,21 @@ object AdBlocker {
         "/beacon.js"
     )
 
-    // Allowed streaming domains for the three selected servers
+    // Allowed streaming domains for the verified video servers
     private val ALLOWED_STREAM_HOSTS = listOf(
         "vaplayer.ru",
         "videasy.net",
         "player.videasy.net",
         "nhdapi.com",
         "tmdb.org",
-        "image.tmdb.org"
+        "image.tmdb.org",
+        "nxsha.space",
+        "modiplay.xyz",
+        "primesrc.me",
+        "ythd.org",
+        "vixsrc.to",
+        "vidcore.io",
+        "vidrock.net"
     )
 
     /**
@@ -218,6 +225,56 @@ object AdBlocker {
                     }
                 }
 
+                // Ensure viewport meta tag exists for responsive embed rendering
+                var meta = document.querySelector('meta[name="viewport"]');
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.name = 'viewport';
+                    if (document.head) document.head.appendChild(meta);
+                }
+                if (meta) {
+                    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+                }
+
+                // Inject CSS to ensure iframe and video container fit the mini player / PiP container 100%
+                var style = document.getElementById('vortex-embed-style');
+                if (!style && document.head) {
+                    style = document.createElement('style');
+                    style.id = 'vortex-embed-style';
+                    style.innerHTML = `
+                        html, body {
+                            width: 100% !important;
+                            height: 100% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            overflow: hidden !important;
+                            background-color: #000000 !important;
+                        }
+                        iframe, video, embed, object, #player, .player, .artplayer, .jwplayer, .vjs-tech {
+                            width: 100% !important;
+                            height: 100% !important;
+                            max-width: 100vw !important;
+                            max-height: 100vh !important;
+                            border: 0 !important;
+                            object-fit: contain !important;
+                        }
+                        /* Mini player / PiP adjustments when viewport is compact */
+                        @media (max-height: 360px), (max-width: 480px) {
+                            .jw-controlbar, .art-controls, .vjs-control-bar {
+                                transform: scale(0.85);
+                                transform-origin: bottom center;
+                            }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+
+                // Prevent pause when activity loses focus or enters Picture-in-Picture
+                try {
+                    Object.defineProperty(document, 'hidden', { get: function() { return false; }, configurable: true });
+                    Object.defineProperty(document, 'visibilityState', { get: function() { return 'visible'; }, configurable: true });
+                } catch(e) {}
+
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', function() {
                         sanitizeLinks();
@@ -230,4 +287,78 @@ object AdBlocker {
             } catch(e) {}
         })();
     """
+
+    fun buildPipAdjustmentJs(isInPip: Boolean): String {
+        return """
+            (function() {
+                try {
+                    var inPip = $isInPip;
+                    var style = document.getElementById('vortex-pip-style');
+                    if (inPip) {
+                        if (!style && document.head) {
+                            style = document.createElement('style');
+                            style.id = 'vortex-pip-style';
+                            style.innerHTML = `
+                                html, body {
+                                    width: 100vw !important;
+                                    height: 100vh !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    overflow: hidden !important;
+                                    background: #000000 !important;
+                                }
+                                /* Hide in-embed headers, title bars, and branding in PiP mode */
+                                .top-bar, #topBar, .title-bar, #titleBar, .title-text,
+                                header, nav, [class*="header"], [class*="title-bar"],
+                                [class*="top-bar"], [class*="watermark"], [class*="branding"],
+                                .server-btn-wrap, .server-dropdown, #serverToggle,
+                                [class*="badge"], [class*="logo"], [class*="back-btn"] {
+                                    display: none !important;
+                                    visibility: hidden !important;
+                                    opacity: 0 !important;
+                                    pointer-events: none !important;
+                                }
+                                /* Clean full-viewport embedding for video and inner players */
+                                video, iframe, embed, object, #player, .player, #playerContainer, .player-container, #playerFrame, .artplayer, .jwplayer, .vjs-tech, [class*="player"] {
+                                    position: fixed !important;
+                                    top: 0 !important;
+                                    left: 0 !important;
+                                    width: 100vw !important;
+                                    height: 100vh !important;
+                                    max-width: 100vw !important;
+                                    max-height: 100vh !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    border: none !important;
+                                    object-fit: contain !important;
+                                    z-index: 99999 !important;
+                                    background: #000000 !important;
+                                }
+                                .jw-controlbar, .art-controls, .vjs-control-bar {
+                                    opacity: 0.8 !important;
+                                }
+                            `;
+                            document.head.appendChild(style);
+                        }
+                        // Resume video if paused during PiP transition
+                        var videos = document.querySelectorAll('video');
+                        videos.forEach(function(v) {
+                            if (v.paused) {
+                                v.play().catch(function(){});
+                            }
+                        });
+                        // Trigger click on play button overlays if playback hasn't started
+                        var playButtons = document.querySelectorAll('[class*="play" i], button[aria-label*="play" i], .jw-display-icon-container, .vjs-big-play-button');
+                        playButtons.forEach(function(btn) {
+                            try { btn.click(); } catch(e){}
+                        });
+                    } else {
+                        if (style) {
+                            style.remove();
+                        }
+                    }
+                } catch(e) {}
+            })();
+        """.trimIndent()
+    }
 }

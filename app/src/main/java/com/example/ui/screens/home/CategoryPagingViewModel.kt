@@ -49,12 +49,17 @@ class CategoryPagingViewModel(
                 HomeCategory.HOLLYWOOD -> repository.getHollywood(page)
                 HomeCategory.MOVIES -> repository.getMovies(page)
                 HomeCategory.TV_SHOWS -> repository.getTvShows(page)
-                HomeCategory.ALL -> repository.getTrending(page)
+                HomeCategory.ALL, HomeCategory.TRENDING -> repository.getTrending(page)
+                HomeCategory.TOP_RATED -> repository.getTopRated(isTv = false, page = page)
+                HomeCategory.NOW_PLAYING -> repository.getNowPlaying(page = page)
+                HomeCategory.TRENDING_TV -> repository.getTvShows(page = page)
             }
 
             result.onSuccess { newItems ->
+                val existingIds = currentState.items.map { it.id }.toSet()
+                val uniqueNewItems = newItems.filter { it.id !in existingIds }
                 _state.value = currentState.copy(
-                    items = currentState.items + newItems,
+                    items = currentState.items + uniqueNewItems,
                     isLoading = false,
                     page = page + 1,
                     isEndOfPaginationReached = newItems.isEmpty()

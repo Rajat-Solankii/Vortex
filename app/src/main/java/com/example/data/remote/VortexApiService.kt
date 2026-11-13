@@ -56,4 +56,14 @@ interface VortexApiService {
         @Query("path") path: String = "watch/providers/movie",
         @Query("watch_region") watchRegion: String = "US"
     ): com.example.data.model.ProviderResponse
+
+    @GET("api/tmdb")
+    suspend fun getCredits(
+        @Query("path") path: String
+    ): com.example.data.model.CreditsResponseDto
+
+    @GET("api/tmdb")
+    suspend fun getVideos(
+        @Query("path") path: String
+    ): com.example.data.model.VideosResponseDto
 }

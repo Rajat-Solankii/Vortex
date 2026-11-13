@@ -42,6 +42,7 @@ data class MovieDetailsDto(
     @Json(name = "poster_path") val posterPath: String? = null,
     @Json(name = "backdrop_path") val backdropPath: String? = null,
     @Json(name = "vote_average") val voteAverage: Double? = null,
+    @Json(name = "vote_count") val voteCount: Int? = null,
     @Json(name = "release_date") val releaseDate: String? = null,
     @Json(name = "runtime") val runtime: Int? = null,
     @Json(name = "tagline") val tagline: String? = null,
@@ -91,6 +92,7 @@ data class TvDetailsDto(
     @Json(name = "poster_path") val posterPath: String? = null,
     @Json(name = "backdrop_path") val backdropPath: String? = null,
     @Json(name = "vote_average") val voteAverage: Double? = null,
+    @Json(name = "vote_count") val voteCount: Int? = null,
     @Json(name = "first_air_date") val firstAirDate: String? = null,
     @Json(name = "number_of_seasons") val numberOfSeasons: Int? = null,
     @Json(name = "number_of_episodes") val numberOfEpisodes: Int? = null,
@@ -98,6 +100,35 @@ data class TvDetailsDto(
     @Json(name = "genres") val genres: List<GenreDto>? = null,
     @Json(name = "status") val status: String? = null,
     @Json(name = "seasons") val seasons: List<SeasonDto>? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class CastMemberDto(
+    @Json(name = "id") val id: Int = 0,
+    @Json(name = "name") val name: String? = null,
+    @Json(name = "character") val character: String? = null,
+    @Json(name = "profile_path") val profilePath: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class CreditsResponseDto(
+    @Json(name = "id") val id: Int = 0,
+    @Json(name = "cast") val cast: List<CastMemberDto>? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class VideoDto(
+    @Json(name = "id") val id: String = "",
+    @Json(name = "key") val key: String? = null,
+    @Json(name = "name") val name: String? = null,
+    @Json(name = "site") val site: String? = null,
+    @Json(name = "type") val type: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class VideosResponseDto(
+    @Json(name = "id") val id: Int = 0,
+    @Json(name = "results") val results: List<VideoDto>? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -157,6 +188,14 @@ data class MediaItem(
 )
 
 @Immutable
+data class CastMember(
+    val id: Int,
+    val name: String,
+    val character: String,
+    val profileUrl: String
+)
+
+@Immutable
 data class MediaDetail(
     val id: Int,
     val title: String,
@@ -171,7 +210,10 @@ data class MediaDetail(
     val genres: List<String>,
     val rawPosterPath: String? = null,
     val rawBackdropPath: String? = null,
-    val seasons: List<SeasonItem> = emptyList()
+    val seasons: List<SeasonItem> = emptyList(),
+    val cast: List<CastMember> = emptyList(),
+    val trailerKey: String? = null,
+    val voteCount: Int = 0
 )
 
 fun MediaItemDto.toDomain(fallbackType: MediaType = MediaType.MOVIE): MediaItem {
