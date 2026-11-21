@@ -39,11 +39,11 @@
     <string name="servers_error_forbidden">This user does not have access.</string>
     <string name="servers_error_failed">Could not connect to the server.</string>
     <string name="home_empty_no_sources_title">No content sources</string>
-    <string name="home_empty_no_sources_message">Add an addon or connect a media server to see catalogs on Home.</string>
+    <string name="home_empty_no_sources_message">Couldn't reach Vortex. Check your connection and try again.</string>
     <string name="servers_failure_auth">Sign in to this server again in Settings.</string>
     <string name="servers_failure_unreachable">The server is unavailable.</string>
     <string name="servers_failure_not_found">This item is no longer available on the server.</string>
-    <string name="search_empty_no_sources_message">Add an addon or connect a media server to search.</string>
+    <string name="search_empty_no_sources_message">Couldn't reach Vortex. Check your connection and try again.</string>
     <string name="servers_playback_failed">Could not start playback from the server.</string>
     <string name="library_server_title_unsupported">Titles from your media server can't be added to this library. Turn on Use addon metadata for the server to save them here.</string>
     <string name="library_source_servers">Servers</string>
@@ -61,7 +61,7 @@
     <string name="servers_failure_incomplete">Still checking this server's library. Try again in a moment.</string>
     <string name="servers_failure_remote_playback">Plex only allows playback from this server away from its home network with Plex Pass or a Remote Watch Pass.</string>
     <string name="plex_add_description">Sign in with your Plex account.</string>
-    <string name="plex_sign_in_subtitle">Sign in on plex.tv. Your Plex password is never entered in Nuvio.</string>
+    <string name="plex_sign_in_subtitle">Sign in on plex.tv. Your Plex password is never entered in Vortex.</string>
     <string name="plex_continue">Continue with Plex</string>
     <string name="plex_browser_waiting">Finish signing in on plex.tv, then come back here.</string>
     <string name="plex_use_code">Sign in on another device</string>

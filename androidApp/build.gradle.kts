@@ -67,7 +67,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.nuvio.app"
+        applicationId = "com.vortex.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = releaseAppVersionCode
@@ -157,15 +157,15 @@ android {
 
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
-        variant.applicationId.set("com.nuviodebug.com")
+        variant.applicationId.set("com.vortex.app.debug")
     }
     onVariants(selector().withBuildType("benchmark")) { variant ->
-        variant.applicationId.set("com.nuviodebug.com")
+        variant.applicationId.set("com.vortex.app.debug")
     }
     onVariants { variant ->
         val buildType = variant.buildType.orEmpty()
         if (buildType.startsWith("nonMinified") || buildType.startsWith("benchmark") && buildType != "benchmark") {
-            variant.applicationId.set("com.nuviodebug.com")
+            variant.applicationId.set("com.vortex.app.debug")
             variant.signingConfig.setConfig(android.signingConfigs.getByName("debug"))
         }
     }

@@ -115,6 +115,15 @@ private fun SettingsPage.isEnabledByPolicy(): Boolean =
         SettingsPage.SupportersContributors -> AppFeaturePolicy.supportersContributorsPageEnabled
         SettingsPage.PlaybackP2p -> P2pSettingsRepository.isVisible
         SettingsPage.PlaybackBuffer -> !isIos
+        // Vortex has one built-in source, so add-on style sources are not configurable.
+        SettingsPage.Addons,
+        SettingsPage.Plugins,
+        SettingsPage.ContentDiscovery,
+        SettingsPage.MediaServers,
+        SettingsPage.MediaServer,
+        SettingsPage.Debrid,
+        SettingsPage.TmdbEnrichment,
+        -> false
         else -> true
     }
 

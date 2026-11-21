@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.profiles.ProfileRepository
+import com.nuvio.app.features.vortex.VortexBuiltinAddon
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
@@ -48,6 +49,9 @@ private data class AddonPushItem(
 
 private const val ADDON_PUSH_DEBOUNCE_MS = 500L
 
+/** Vortex only uses its built-in source; installing and syncing add-ons is disabled. */
+private const val VORTEX_ONLY = true
+
 object AddonRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("AddonRepository")
@@ -65,29 +69,20 @@ object AddonRepository {
         if (initialized) return
         initialized = true
         currentProfileId = effectiveProfileId
-        log.d { "initialize() — loading local addons for profile $currentProfileId" }
+        log.d { "initialize() — using the built-in Vortex source for profile $currentProfileId" }
+        ensureBuiltinAddon()
+    }
 
-        val storedUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId))
-        val enabledByUrl = loadLocalEnabledStates()
-        log.d { "initialize() — local addon count: ${storedUrls.size}" }
-        if (storedUrls.isEmpty()) return
-
-        val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
+    /** Vortex ships a single, always-on source; user add-ons are not supported. */
+    private fun ensureBuiltinAddon() {
+        val manifestUrl = VortexBuiltinAddon.MANIFEST_URL
+        val existing = _uiState.value.addons.firstOrNull { it.manifestUrl == manifestUrl }
         _uiState.value = AddonsUiState(
-            addons = storedUrls.map { manifestUrl ->
-                existingByUrl[manifestUrl].toPendingAddon(
-                    manifestUrl = manifestUrl,
-                    enabled = enabledByUrl[manifestUrl],
-                )
-            },
+            addons = listOf(existing.toPendingAddon(manifestUrl = manifestUrl, enabled = true)),
         )
-
-        storedUrls.forEach { manifestUrl ->
-            val existing = existingByUrl[manifestUrl]
-            val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == manifestUrl }
-            if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
-                refreshAddon(manifestUrl)
-            }
+        val addon = _uiState.value.addons.first()
+        if (addon.manifest == null && activeRefreshJobs[manifestUrl]?.isActive != true) {
+            refreshAddon(manifestUrl)
         }
     }
 
@@ -111,52 +106,8 @@ object AddonRepository {
 
     suspend fun pullFromServer(profileId: Int) {
         currentProfileId = resolveEffectiveProfileId(profileId)
-        log.i { "pullFromServer() — profileId=$profileId, initialized=$initialized" }
-        runCatching {
-            val rows = SupabaseProvider.client.postgrest
-                .from("addons")
-                .select {
-                    filter { eq("profile_id", currentProfileId) }
-                    order("sort_order", Order.ASCENDING)
-                }
-                .decodeList<AddonRow>()
-
-            val rowsByUrl = linkedMapOf<String, AddonRow>()
-            rows.forEach { row ->
-                val manifestUrl = ensureManifestSuffix(row.url)
-                if (!rowsByUrl.containsKey(manifestUrl)) {
-                    rowsByUrl[manifestUrl] = row.copy(url = manifestUrl)
-                }
-            }
-
-            val urls = rowsByUrl.keys.toList()
-            log.i { "pullFromServer() — server returned ${rows.size} addons" }
-            urls.forEachIndexed { i, u -> log.d { "  server[$i]: $u" } }
-
-            val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
-            _uiState.value = AddonsUiState(
-                addons = urls.map { url ->
-                    val row = rowsByUrl[url]
-                    existingByUrl[url].toPendingAddon(
-                        manifestUrl = url,
-                        userSetName = row?.name?.takeIf { it.isNotBlank() },
-                        enabled = row?.enabled,
-                    )
-                },
-            )
-            persist()
-            urls.forEach { url ->
-                val existing = existingByUrl[url]
-                val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == url }
-                if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
-                    refreshAddon(url)
-                }
-            }
-            initialized = true
-            log.i { "pullFromServer() — applied ${urls.size} addons to state" }
-        }.onFailure { e ->
-            log.e(e) { "pullFromServer() — FAILED" }
-        }
+        initialized = true
+        ensureBuiltinAddon()
     }
 
     suspend fun awaitManifestsLoaded() {
@@ -179,49 +130,15 @@ object AddonRepository {
         _pendingTrackingConsent.value = null
     }
 
+    @Suppress("UNUSED_PARAMETER")
     suspend fun installWithTrackingConsent(manifest: AddonManifest): AddAddonResult {
         _pendingTrackingConsent.value = null
-        if (isUsingPrimaryAddonsFromSecondaryProfile()) {
-            return AddAddonResult.Error(getString(Res.string.profile_primary_addons_required))
-        }
-        if (_uiState.value.addons.any { it.manifestUrl == manifest.transportUrl }) {
-            return AddAddonResult.Error(getString(Res.string.addon_already_installed))
-        }
-        return installManifest(manifest.transportUrl, manifest)
+        return AddAddonResult.Error("Vortex has a built-in source; add-ons cannot be installed.")
     }
 
-    suspend fun addAddon(rawUrl: String): AddAddonResult {
-        if (isUsingPrimaryAddonsFromSecondaryProfile()) {
-            return AddAddonResult.Error(getString(Res.string.profile_primary_addons_required))
-        }
-        log.i { "addAddon() — rawUrl=$rawUrl" }
-        val manifestUrl = try {
-            normalizeManifestUrl(rawUrl)
-        } catch (error: IllegalArgumentException) {
-            return AddAddonResult.Error(error.message ?: getString(Res.string.addon_invalid_url))
-        }
-
-        if (_uiState.value.addons.any { it.manifestUrl == manifestUrl }) {
-            return AddAddonResult.Error(getString(Res.string.addon_already_installed))
-        }
-
-        val manifest = try {
-            withContext(Dispatchers.Default) {
-                val payload = fetchAddonResponseText(manifestUrl)
-                AddonManifestParser.parse(
-                    manifestUrl = manifestUrl,
-                    payload = payload,
-                )
-            }
-        } catch (error: Throwable) {
-            return AddAddonResult.Error(error.message ?: getString(Res.string.addon_load_manifest_failed))
-        }
-
-        if (manifest.isTrackingAddon) {
-            return AddAddonResult.TrackingConsentRequired(manifest)
-        }
-        return installManifest(manifestUrl, manifest)
-    }
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun addAddon(rawUrl: String): AddAddonResult =
+        AddAddonResult.Error("Vortex has a built-in source; add-ons cannot be installed.")
 
     private fun installManifest(manifestUrl: String, manifest: AddonManifest): AddAddonResult {
         _uiState.update { current ->
@@ -240,6 +157,7 @@ object AddonRepository {
     }
 
     fun removeAddon(manifestUrl: String) {
+        if (VORTEX_ONLY) return
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         log.i { "removeAddon() — $manifestUrl" }
         var changed = false
@@ -254,6 +172,7 @@ object AddonRepository {
     }
 
     fun moveAddon(fromIndex: Int, toIndex: Int) {
+        if (VORTEX_ONLY) return
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         var changed = false
         _uiState.update { current ->
@@ -278,6 +197,7 @@ object AddonRepository {
     }
 
     fun setAddonEnabled(manifestUrl: String, enabled: Boolean) {
+        if (VORTEX_ONLY) return
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         var shouldRefresh = false
         var changed = false
@@ -368,6 +288,7 @@ object AddonRepository {
     }
 
     private fun pushToServer() {
+        if (VORTEX_ONLY) return
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         val profileId = currentProfileId
         val addons = _uiState.value.addons
@@ -424,6 +345,7 @@ object AddonRepository {
     }
 
     private fun persist() {
+        if (VORTEX_ONLY) return
         val addons = _uiState.value.addons
         AddonStorage.saveInstalledAddonUrls(
             currentProfileId,

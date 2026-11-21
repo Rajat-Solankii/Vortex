@@ -13,6 +13,8 @@ import com.nuvio.app.features.player.ExternalPlayerPlatform
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.player.PlayerScreen
+import com.nuvio.app.features.vortex.VortexEmbedPlayer
+import com.nuvio.app.features.vortex.VortexServers
 import com.nuvio.app.features.watchprogress.ResumePromptRepository
 import com.nuvio.app.navigation.NuvioNavigator
 import com.nuvio.app.navigation.PlayerRoute
@@ -40,6 +42,12 @@ internal fun PlayerDestination(
     }
     LaunchedEffect(launch.videoId) {
         launch.videoId?.let { ResumePromptRepository.markPlayerEntered(it) }
+    }
+    if (VortexServers.isEmbedUrl(launch.sourceUrl)) {
+        // Vortex servers are full web players, so they get the Vortex player screen instead of
+        // the native video engine.
+        VortexEmbedPlayer(launch = launch, onBack = onBack, modifier = Modifier.fillMaxSize())
+        return
     }
     PlayerScreen(
         profileId = launch.profileId,

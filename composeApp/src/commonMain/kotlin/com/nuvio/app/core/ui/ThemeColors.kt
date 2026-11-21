@@ -116,15 +116,23 @@ object ThemeColors {
         backgroundCard = Color(0xFF1A1F24),
     )
 
+    /** Vortex brand palette: violet to cyan, on Vortex's cinematic dark neutrals. */
     val Violet = ThemeColorPalette(
-        secondary = Color(0xFF8E24AA),
-        secondaryVariant = Color(0xFF6A1B9A),
-        nativeAccentHex = "#8E24AA",
-        focusRing = Color(0xFFAB47BC),
-        focusBackground = Color(0xFF2D1A3D),
-        background = Color(0xFF0D0D0F),
-        backgroundElevated = Color(0xFF1A1A1E),
-        backgroundCard = Color(0xFF1F1A24),
+        secondary = Color(0xFF7C4DFF),
+        secondaryVariant = Color(0xFF651FFF),
+        accentGradient = listOf(
+            Color(0xFF651FFF),
+            Color(0xFF7C4DFF),
+            Color(0xFFB388FF),
+            Color(0xFF00E5FF),
+            Color(0xFF00B0FF),
+        ),
+        nativeAccentHex = "#7C4DFF",
+        focusRing = Color(0xFFB388FF),
+        focusBackground = Color(0xFF241B45),
+        background = Color(0xFF0F0F14),
+        backgroundElevated = Color(0xFF161620),
+        backgroundCard = Color(0xFF1E1D2B),
     )
 
     val Emerald = ThemeColorPalette(

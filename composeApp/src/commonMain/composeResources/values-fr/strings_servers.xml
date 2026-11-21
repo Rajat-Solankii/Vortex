@@ -61,7 +61,7 @@
     <string name="servers_failure_incomplete">Vérification de la bibliothèque de ce serveur en cours. Réessayez dans un instant.</string>
     <string name="servers_failure_remote_playback">Plex n’autorise la lecture depuis ce serveur en dehors de son réseau local qu’avec Plex Pass ou un Remote Watch Pass.</string>
     <string name="plex_add_description">Connectez-vous avec votre compte Plex.</string>
-    <string name="plex_sign_in_subtitle">Connectez-vous sur plex.tv. Votre mot de passe Plex n’est jamais saisi dans Nuvio.</string>
+    <string name="plex_sign_in_subtitle">Connectez-vous sur plex.tv. Votre mot de passe Plex n’est jamais saisi dans Vortex.</string>
     <string name="plex_continue">Continuer avec Plex</string>
     <string name="plex_browser_waiting">Terminez la connexion sur plex.tv, puis revenez ici.</string>
     <string name="plex_use_code">Se connecter sur un autre appareil</string>

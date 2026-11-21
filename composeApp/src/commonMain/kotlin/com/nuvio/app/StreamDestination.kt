@@ -1,5 +1,6 @@
 package com.nuvio.app
 
+import com.nuvio.app.features.vortex.VortexServers
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -391,7 +392,7 @@ internal fun StreamDestination(
                 sourceFromLinkCache = true,
                 sourceAutoSelected = true,
             )
-            if (playerSettings.externalPlayerEnabled) {
+            if ((playerSettings.externalPlayerEnabled && !VortexServers.isEmbedUrl(playerLaunch.sourceUrl))) {
                 openExternalPlayback(playerLaunch)
                 StreamsRepository.cancelLoading()
                 StreamsRepository.setOverlayVisible(false)
@@ -563,7 +564,7 @@ internal fun StreamDestination(
             stream = stream,
             sourceAutoSelected = true,
         )
-        if (playerSettings.externalPlayerEnabled && stream.serverTarget == null) {
+        if ((playerSettings.externalPlayerEnabled && !VortexServers.isEmbedUrl(playerLaunch.sourceUrl)) && stream.serverTarget == null) {
             openExternalPlayback(playerLaunch)
             StreamsRepository.consumeAutoPlay()
             StreamsRepository.cancelLoading()
@@ -766,7 +767,7 @@ internal fun StreamDestination(
             stream = stream,
         )
 
-        if (!forceInternal && (forceExternal || playerSettings.externalPlayerEnabled)) {
+        if (!forceInternal && (forceExternal || (playerSettings.externalPlayerEnabled && !VortexServers.isEmbedUrl(playerLaunch.sourceUrl)))) {
             streamRouteScope.launch {
                 openExternalPlayback(playerLaunch)
                 StreamsRepository.cancelLoading()

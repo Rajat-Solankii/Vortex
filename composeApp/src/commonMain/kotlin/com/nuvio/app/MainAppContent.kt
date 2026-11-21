@@ -1,5 +1,7 @@
 package com.nuvio.app
 
+import com.nuvio.app.features.vortex.VortexBuiltinAddon
+import com.nuvio.app.features.vortex.VortexServers
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.MutableTransitionState
@@ -325,7 +327,9 @@ internal fun MainAppContent(
     )
     var visiblePlayerEntries by remember { mutableIntStateOf(0) }
     var streamLandscapeLoadingVisible by remember(currentRoute) { mutableStateOf(false) }
-    if (currentRoute is PlayerRoute || visiblePlayerEntries > 0 || streamLandscapeLoadingVisible) {
+    val currentRouteIsVortexEmbed = (currentRoute as? PlayerRoute)
+        ?.let { VortexServers.isEmbedUrl(PlayerLaunchStore.get(it.launchId)?.sourceUrl) } == true
+    if ((currentRoute is PlayerRoute && !currentRouteIsVortexEmbed) || visiblePlayerEntries > 0 || streamLandscapeLoadingVisible) {
         LockPlayerToLandscape()
         HidePlayerSystemBars()
     }
@@ -746,27 +750,7 @@ internal fun MainAppContent(
                     }
 
                     is AppDeepLink.AddonInstall -> {
-                        activateTab(AppScreenTab.Settings)
-                        navController.navigate(AddonsSettingsRoute(addonsSettingsTitle)) {
-                            launchSingleTop = true
-                        }
-                        NuvioToastController.show(getString(Res.string.addons_modal_checking_title))
-                        AddonRepository.initialize()
-                        when (val result = AddonRepository.addAddon(deepLink.manifestUrl)) {
-                            is AddAddonResult.Success -> {
-                                NuvioToastController.show(
-                                    getString(Res.string.addons_modal_success_message, result.manifest.name),
-                                )
-                            }
-
-                            is AddAddonResult.TrackingConsentRequired -> {
-                                AddonRepository.requestTrackingConsent(result.manifest)
-                            }
-
-                            is AddAddonResult.Error -> {
-                                NuvioToastController.show(result.message)
-                            }
-                        }
+                        // Vortex uses its built-in source; add-on install links are ignored.
                         AppDeepLinkRepository.markConsumed(deepLink)
                     }
 
@@ -878,7 +862,7 @@ internal fun MainAppContent(
                 initialPositionMs = resumeEntry?.lastPositionMs?.takeIf { it > 0L } ?: 0L,
                 initialProgressFraction = resumeEntry?.progressFraction?.takeIf { it > 0f },
             )
-            if (playerSettingsUiState.externalPlayerEnabled) {
+            if (playerSettingsUiState.externalPlayerEnabled && !VortexServers.isEmbedUrl(playerLaunch.sourceUrl)) {
                 coroutineScope.launch { openExternalPlayback(playerLaunch) }
                 return
             }
@@ -1000,7 +984,7 @@ internal fun MainAppContent(
                         initialPositionMs = targetResumePositionMs,
                         initialProgressFraction = targetResumeProgressFraction,
                     )
-                    if (playerSettingsUiState.externalPlayerEnabled) {
+                    if (playerSettingsUiState.externalPlayerEnabled && !VortexServers.isEmbedUrl(playerLaunch.sourceUrl)) {
                         coroutineScope.launch { openExternalPlayback(playerLaunch) }
                         return
                     }
@@ -1015,31 +999,78 @@ internal fun MainAppContent(
                 return
             }
 
-            val streamLaunchId = StreamLaunchStore.put(
-                StreamLaunch(
-                    profileId = activePlaybackProfileId,
-                    type = type,
-                    videoId = videoId,
-                    parentMetaId = parentMetaId,
-                    parentMetaType = parentMetaType,
-                    title = title,
-                    logo = logo,
-                    poster = poster,
-                    background = background,
-                    seasonNumber = seasonNumber,
-                    episodeNumber = episodeNumber,
-                    episodeTitle = episodeTitle,
-                    episodeThumbnail = episodeThumbnail,
-                    pauseDescription = pauseDescription,
-                    resumePositionMs = if (startFromBeginning) 0L else resumePositionMs,
-                    resumeProgressFraction = targetResumeProgressFraction,
-                    manualSelection = manualSelection,
-                    startFromBeginning = startFromBeginning,
-                ),
-            )
-            navController.navigate(
-                StreamRoute(launchId = streamLaunchId, title = title),
-            )
+            // Vortex titles open straight in the Vortex player on the last used server; the
+            // other servers are picked inside the player. "Choose source" still shows the list.
+            fun openStreamList() {
+                val streamLaunchId = StreamLaunchStore.put(
+                    StreamLaunch(
+                        profileId = activePlaybackProfileId,
+                        type = type,
+                        videoId = videoId,
+                        parentMetaId = parentMetaId,
+                        parentMetaType = parentMetaType,
+                        title = title,
+                        logo = logo,
+                        poster = poster,
+                        background = background,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = episodeNumber,
+                        episodeTitle = episodeTitle,
+                        episodeThumbnail = episodeThumbnail,
+                        pauseDescription = pauseDescription,
+                        resumePositionMs = if (startFromBeginning) 0L else resumePositionMs,
+                        resumeProgressFraction = targetResumeProgressFraction,
+                        manualSelection = manualSelection,
+                        startFromBeginning = startFromBeginning,
+                    ),
+                )
+                navController.navigate(
+                    StreamRoute(launchId = streamLaunchId, title = title),
+                )
+            }
+
+            if (!manualSelection) {
+                coroutineScope.launch {
+                    val vortexTarget = VortexServers.resolveTarget(
+                        videoId = videoId,
+                        parentMetaId = parentMetaId,
+                        type = type,
+                        season = seasonNumber,
+                        episode = episodeNumber,
+                    )
+                    if (vortexTarget == null) {
+                        openStreamList()
+                        return@launch
+                    }
+                    val source = VortexServers.preferredSource(vortexTarget)
+                    val playerLaunch = PlayerLaunch(
+                        profileId = activePlaybackProfileId,
+                        title = title,
+                        sourceUrl = source.url,
+                        logo = logo,
+                        poster = poster,
+                        background = background,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = episodeNumber,
+                        episodeTitle = episodeTitle,
+                        episodeThumbnail = episodeThumbnail,
+                        streamTitle = source.server.displayName,
+                        pauseDescription = pauseDescription,
+                        providerName = VortexBuiltinAddon.NAME,
+                        providerAddonId = VortexBuiltinAddon.ADDON_ID,
+                        contentType = type,
+                        videoId = videoId,
+                        parentMetaId = parentMetaId,
+                        parentMetaType = parentMetaType,
+                        initialPositionMs = targetResumePositionMs,
+                        initialProgressFraction = targetResumeProgressFraction,
+                    )
+                    val launchId = PlayerLaunchStore.put(playerLaunch)
+                    navController.navigate(PlayerRoute(launchId = launchId, title = playerLaunch.title))
+                }
+                return
+            }
+            openStreamList()
         }
 
         fun openPartyMedia(media: PartyMedia) {
@@ -1467,7 +1498,6 @@ internal fun MainAppContent(
                                 onHomescreenSettingsClick = { navController.navigate(HomescreenSettingsRoute(homescreenSettingsTitle)) },
                                 onMetaScreenSettingsClick = { navController.navigate(MetaScreenSettingsRoute(metaScreenSettingsTitle)) },
                                 onContinueWatchingSettingsClick = { navController.navigate(ContinueWatchingSettingsRoute(continueWatchingSettingsTitle)) },
-                                onAddonsSettingsClick = { navController.navigate(AddonsSettingsRoute(addonsSettingsTitle)) },
                                 onPluginsSettingsClick = {
                                     if (AppFeaturePolicy.pluginsEnabled) {
                                         navController.navigate(PluginsSettingsRoute(pluginsSettingsTitle))
@@ -1588,7 +1618,11 @@ internal fun MainAppContent(
                         emptyMap()
                     },
                 ) { route ->
-                    if (!isIos) {
+                    val isVortexEmbedEntry = remember(route.launchId) {
+                        VortexServers.isEmbedUrl(PlayerLaunchStore.get(route.launchId)?.sourceUrl)
+                    }
+                    // The Vortex player starts in portrait and manages landscape itself.
+                    if (!isIos && !isVortexEmbedEntry) {
                         DisposableEffect(route) {
                             visiblePlayerEntries += 1
                             onDispose { visiblePlayerEntries -= 1 }

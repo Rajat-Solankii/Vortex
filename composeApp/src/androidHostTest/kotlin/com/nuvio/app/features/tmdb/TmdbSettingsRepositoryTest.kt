@@ -36,7 +36,7 @@ class TmdbSettingsRepositoryTest {
 
     @Test
     fun enrichmentCanBeEnabledAndReloadedWithoutAPersonalKey() {
-        assertFalse(TmdbSettingsRepository.snapshot().enabled)
+        assertTrue(TmdbSettingsRepository.snapshot().enabled) // Vortex: TMDB via the Vortex API is always on
 
         TmdbSettingsRepository.setEnabled(true)
         TmdbSettingsRepository.onProfileChanged()
@@ -44,7 +44,7 @@ class TmdbSettingsRepositoryTest {
         val settings = TmdbSettingsRepository.snapshot()
         assertTrue(settings.enabled)
         assertEquals("", settings.apiKey)
-        assertTrue(TmdbSettingsRepository.effectiveApiKey() == TmdbConfig.API_KEY)
+        assertTrue(TmdbSettingsRepository.effectiveApiKey() == TmdbConfig.API_KEY.ifBlank { "vortex" })
         assertNull(TmdbSettingsStorage.exportToSyncPayload()["tmdb_api_key"])
     }
 
@@ -55,7 +55,7 @@ class TmdbSettingsRepositoryTest {
 
         assertEquals("personal-key", TmdbSettingsRepository.snapshot().apiKey)
         assertEquals("personal-key", TmdbSettingsRepository.effectiveApiKey())
-        assertFalse(TmdbSettingsRepository.snapshot().enabled)
+        assertTrue(TmdbSettingsRepository.snapshot().enabled) // Vortex: TMDB via the Vortex API is always on
         assertNull(TmdbSettingsStorage.exportToSyncPayload()["tmdb_api_key"])
     }
 
@@ -67,7 +67,7 @@ class TmdbSettingsRepositoryTest {
         TmdbSettingsRepository.onProfileChanged()
 
         assertEquals("", TmdbSettingsRepository.snapshot().apiKey)
-        assertTrue(TmdbSettingsRepository.effectiveApiKey() == TmdbConfig.API_KEY)
+        assertTrue(TmdbSettingsRepository.effectiveApiKey() == TmdbConfig.API_KEY.ifBlank { "vortex" })
         assertTrue(TmdbSettingsRepository.snapshot().enabled)
     }
 
@@ -97,13 +97,13 @@ class TmdbSettingsRepositoryTest {
 
         assertTrue(TmdbSettingsRepository.snapshot().enabled)
         assertEquals("", TmdbSettingsRepository.snapshot().apiKey)
-        assertTrue(TmdbSettingsRepository.effectiveApiKey() == TmdbConfig.API_KEY)
+        assertTrue(TmdbSettingsRepository.effectiveApiKey() == TmdbConfig.API_KEY.ifBlank { "vortex" })
         assertNull(TmdbSettingsStorage.exportToSyncPayload()["tmdb_api_key"])
 
         TmdbSettingsRepository.setEnabled(false)
         TmdbSettingsRepository.onProfileChanged()
 
-        assertFalse(TmdbSettingsRepository.snapshot().enabled)
+        assertTrue(TmdbSettingsRepository.snapshot().enabled) // Vortex: TMDB via the Vortex API is always on
     }
 
     @Test

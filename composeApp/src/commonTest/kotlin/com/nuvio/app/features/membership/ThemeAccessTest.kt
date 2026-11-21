@@ -39,7 +39,7 @@ class ThemeAccessTest {
 
         assertEquals(AppTheme.CUSTOM, themes.first())
         assertEquals(AppTheme.CUSTOM, resolveAppTheme(AppTheme.CUSTOM, CosmeticEntitlements.None))
-        assertEquals(AppTheme.WHITE, resolveAppTheme(null, CosmeticEntitlements.None))
+        assertEquals(AppTheme.VIOLET, resolveAppTheme(null, CosmeticEntitlements.None))
     }
 
     @Test
@@ -75,7 +75,7 @@ class ThemeAccessTest {
             CosmeticEntitlements(setOf(CosmeticEntitlement.GOLD_THEME)),
         )
 
-        assertEquals(listOf(AppTheme.GOLD, AppTheme.CUSTOM, AppTheme.WHITE), themes.take(3))
+        assertEquals(listOf(AppTheme.GOLD, AppTheme.CUSTOM, AppTheme.VIOLET), themes.take(3))
         assertEquals(themes.size, themes.distinct().size)
     }
 }

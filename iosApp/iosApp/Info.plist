@@ -45,8 +45,8 @@
 			<string>com.nuvio.app.auth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>vortex</string>
 				<string>nuvio</string>
-				<string>stremio</string>
 			</array>
 		</dict>
 	</array>

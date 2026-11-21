@@ -2,6 +2,7 @@ package com.nuvio.app.features.tmdb
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.features.vortex.VortexApi
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
@@ -118,26 +119,16 @@ object TmdbService {
         }
 }
 
+/**
+ * Every TMDB request goes through the Vortex API proxy, which holds the TMDB credentials,
+ * so [apiKey] is ignored.
+ */
+@Suppress("UNUSED_PARAMETER")
 internal fun buildTmdbUrl(
     endpoint: String,
     apiKey: String,
     query: Map<String, String> = emptyMap(),
-): String {
-    val params = linkedMapOf("api_key" to apiKey)
-    query.forEach { (key, value) ->
-        if (value.isNotBlank()) {
-            params[key] = value
-        }
-    }
-    return buildString {
-        append("https://api.themoviedb.org/3/")
-        append(endpoint.removePrefix("/"))
-        if (params.isNotEmpty()) {
-            append("?")
-            append(params.entries.joinToString("&") { (key, value) -> "$key=$value" })
-        }
-    }
-}
+): String = VortexApi.tmdbUrl(path = endpoint, query = query)
 
 @Serializable
 private data class TmdbFindResponse(

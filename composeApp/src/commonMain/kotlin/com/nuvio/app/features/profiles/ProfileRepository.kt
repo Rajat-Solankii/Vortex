@@ -123,6 +123,18 @@ object ProfileRepository {
 
     suspend fun pullProfiles() {
         if (AuthRepository.state.value.isAnonymous) {
+            if (_state.value.profiles.isEmpty()) {
+                // Guests get a local Vortex profile so they go straight to Home.
+                applyPayloadsLocally(
+                    listOf(
+                        ProfilePushPayload(
+                            profileIndex = 1,
+                            name = "Vortex",
+                            avatarColorHex = "#7C4DFF",
+                        ),
+                    ),
+                )
+            }
             if (!_state.value.isLoaded) {
                 _state.value = _state.value.copy(isLoaded = true)
             }

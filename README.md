@@ -1,30 +1,38 @@
 <div align="center">
 
-  <img src="https://nuvio.tv/assets/nuvio-app-logo-wordmark.webp" alt="Nuvio" width="320" />
+  <img src="assets/brand/vortex-logo.jpg" alt="Vortex" width="320" />
 
   <p>
-    A free, open-source media app for your phone, your desktop, and the TV you already own.
+    <b>Vortex — Stream Beyond.</b>
     <br />
-    Bring your own sources. Nuvio turns them into a library with artwork, ratings, subtitles, and your place saved on every screen.
+    Movies, TV shows and anime on your phone, with artwork, ratings, trailers and your place saved on every screen.
   </p>
-
-  [Website](https://nuvio.tv) · [GitHub releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest) · [Support Nuvio](https://nuvio.tv/support)
 
 </div>
 
-## Get Nuvio Mobile
+## What's inside
 
-- [Android on Google Play](https://play.google.com/store/apps/details?id=com.nuvio.app)
-- [Android APK](https://github.com/NuvioMedia/NuvioMobile/releases/latest)
-- iOS via AltStore or SideStore: add [this source URL](https://raw.githubusercontent.com/NuvioMedia/NuvioMobile/cmp-rewrite/store.json) in the app's Sources section, then install Nuvio.
-- iOS beta builds: add [the beta source URL](https://raw.githubusercontent.com/NuvioMedia/NuvioMobile/cmp-rewrite/store-beta.json) instead to get pre-releases as well.
+- **Built-in Vortex source.** Home rows, search, discover and the details pages all come from the Vortex API
+  (`api.watchvortex.me`), a TMDB proxy. No add-ons to install and no API keys to enter.
+- **Vortex rows:** Trending, Popular Movies, Popular TV Shows, Anime, Bollywood, Hollywood, Cartoons, Drama,
+  Now Playing and Top Rated, with genre filters and paging.
+- **Seven Vortex servers.** Every title and episode lists Server 1 to Server 7. They play in the Vortex embed
+  player, where you can switch servers without leaving playback.
+- **Vortex Shield.** The embed player drops ad and tracker requests, refuses pop-ups and blocks redirects away
+  from the player.
+- **Library, Continue Watching, Trakt/Simkl tracking, MDBList ratings and downloads.**
+
+## Code map (Vortex integration)
+
+| Area | Where |
+| --- | --- |
+| Vortex API client (TMDB proxy) | `composeApp/src/commonMain/kotlin/com/nuvio/app/features/vortex/VortexApi.kt` |
+| Built-in source (catalogs, details, streams) | `.../features/vortex/VortexBuiltinAddon.kt` |
+| Server list and embed URLs | `.../features/vortex/VortexServers.kt` |
+| Ad and redirect shield | `.../features/vortex/VortexAdShield.kt` |
+| Embed player UI | `.../features/vortex/VortexEmbedPlayer.kt` (+ `VortexEmbedWebView.android.kt` / `.ios.kt`) |
 
 ## Build from source
-
-```bash
-git clone https://github.com/NuvioMedia/NuvioMobile.git
-cd NuvioMobile
-```
 
 ### Android
 
@@ -53,4 +61,5 @@ The shared app is built with Kotlin Multiplatform and Compose Multiplatform.
 
 ## License
 
-[GNU General Public License v3.0](./LICENSE)
+Vortex is built on [Nuvio Mobile](https://github.com/NuvioMedia/NuvioMobile) and is distributed under the
+[GNU General Public License v3.0](./LICENSE).

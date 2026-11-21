@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+private const val VORTEX_PROXY_KEY = "vortex"
+
 object TmdbSettingsRepository {
     private val _uiState = MutableStateFlow(TmdbSettings())
     val uiState: StateFlow<TmdbSettings> = _uiState.asStateFlow()
@@ -42,7 +44,8 @@ object TmdbSettingsRepository {
         return _uiState.value
     }
 
-    fun effectiveApiKey(): String = snapshot().apiKey.ifBlank { TmdbConfig.API_KEY }
+    /** The Vortex API proxy authenticates TMDB requests, so a key is never required. */
+    fun effectiveApiKey(): String = snapshot().apiKey.ifBlank { TmdbConfig.API_KEY }.ifBlank { VORTEX_PROXY_KEY }
 
     fun setEnabled(value: Boolean) {
         ensureLoaded()
@@ -165,7 +168,8 @@ object TmdbSettingsRepository {
         val wasLoaded = hasLoaded
         val previousApiKey = apiKey
         hasLoaded = true
-        enabled = TmdbSettingsStorage.loadEnabled() ?: false
+        // TMDB data comes from the Vortex API, so enrichment is always on.
+        enabled = true
         apiKey = TmdbSettingsStorage.loadApiKey()?.trim().orEmpty()
         val storedLanguage = TmdbSettingsStorage.loadLanguage()
         language = if (storedLanguage == null) "en" else normalizeLanguage(storedLanguage)

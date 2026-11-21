@@ -62,7 +62,7 @@
     <string name="servers_failure_incomplete">Bu sunucunun kütüphanesi hala kontrol ediliyor. Birazdan tekrar deneyin.</string>
     <string name="servers_failure_remote_playback">Plex, bu sunucudan ev ağı dışındayken oynatmaya yalnızca Plex Pass veya Uzaktan İzleme Kartı ile izin verir.</string>
     <string name="plex_add_description">Plex hesabınızla giriş yapın.</string>
-    <string name="plex_sign_in_subtitle">plex.tv üzerinden giriş yapın. Plex şifreniz Nuvio'ya asla girilmez.</string>
+    <string name="plex_sign_in_subtitle">plex.tv üzerinden giriş yapın. Plex şifreniz Vortex'ya asla girilmez.</string>
     <string name="plex_continue">Plex ile devam et</string>
     <string name="plex_browser_waiting">plex.tv üzerinde girişi tamamlayın, ardından buraya dönün.</string>
     <string name="plex_use_code">Başka bir cihazda giriş yap</string>

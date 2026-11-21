@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit // Vortex embed player (WKWebView) — links WebKit for the static ComposeApp framework
 import ComposeApp
 
 @main
