@@ -1,7 +1,5 @@
 <div align="center">
 
-  <img src="assets/brand/vortex-logo.jpg" alt="Vortex" width="320" />
-
   <p>
     <b>Vortex — Open-Source Cross-Platform Media Client</b>
     <br />
