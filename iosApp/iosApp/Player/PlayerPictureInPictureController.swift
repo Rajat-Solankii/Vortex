@@ -84,7 +84,7 @@ final class PlayerPictureInPictureController: NSObject,
         self.metalLayer = metalLayer
         if #available(iOS 17.0, *) {
             let renderer = layer.sampleBufferRenderer
-            frameQueue = DispatchQueue(label: "com.nuvio.pip.frames", qos: .userInitiated)
+            frameQueue = DispatchQueue(label: "com.rajatsolankii.vortex.pip.frames", qos: .userInitiated)
             prepareFrameRenderer = {
                 if renderer.status == .failed { renderer.flush() }
                 return renderer.isReadyForMoreMediaData

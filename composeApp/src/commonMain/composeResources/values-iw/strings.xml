@@ -341,7 +341,7 @@ Therefore, duplicate the values-he directory as values-iw. Keep both directories
     <string name="collections_pinned">מוצמד</string>
     <string name="collections_tab_all">הכול</string>
     <string name="collections_your_collections">האוספים שלך</string>
-    <string name="compose_about_made_with">נוצר באהבה ❤️ על ידי Tapframe וחברים</string>
+    <string name="compose_about_made_with">נוצר באהבה ❤️ על ידי Rajat-Solanki וחברים</string>
     <string name="compose_about_version_format">גרסה %1$s (%2$s)</string>
     <string name="compose_action_off">כבוי</string>
     <string name="compose_action_on">פועל</string>

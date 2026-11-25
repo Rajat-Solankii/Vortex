@@ -2,8 +2,8 @@
 .kotlin
 .gradle
 **/build/
-!composeApp/src/**/kotlin/com/nuvio/app/core/build/
-!composeApp/src/**/kotlin/com/nuvio/app/core/build/**
+!composeApp/src/**/kotlin/com/rajatsolankii/vortex/core/build/
+!composeApp/src/**/kotlin/com/rajatsolankii/vortex/core/build/**
 xcuserdata
 !src/**/build/
 local.properties
@@ -37,3 +37,10 @@ iosApp/Configuration/DeviceSigning.local.json
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage
+
+# Local release outputs & keystores
+Release/
+*.apk
+*.aab
+*.jks
+*.keystore

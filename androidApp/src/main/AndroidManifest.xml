@@ -13,7 +13,7 @@
         android:required="false" />
 
     <application
-        android:name="com.nuvio.app.NuvioApplication"
+        android:name="com.rajatsolankii.vortex.NuvioApplication"
         android:allowBackup="false"
         android:enableOnBackInvokedCallback="false"
         android:icon="@mipmap/ic_launcher"
@@ -31,13 +31,13 @@
 
         <activity
             android:exported="true"
-            android:name="com.nuvio.app.MainActivity"
+            android:name="com.rajatsolankii.vortex.MainActivity"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.Nuvio.Splash" />
 
         <activity
-            android:name="com.nuvio.app.LinkActivity"
+            android:name="com.rajatsolankii.vortex.LinkActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:noHistory="true"
@@ -85,7 +85,7 @@
         </activity>
 
         <activity
-            android:name="com.nuvio.app.launcher.AppIconDefault"
+            android:name="com.rajatsolankii.vortex.launcher.AppIconDefault"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:enabled="true"
             android:exported="true"
@@ -100,7 +100,7 @@
         </activity>
 
         <activity
-            android:name="com.nuvio.app.launcher.AppIconArcticBlue"
+            android:name="com.rajatsolankii.vortex.launcher.AppIconArcticBlue"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:enabled="false"
             android:exported="true"
@@ -115,7 +115,7 @@
         </activity>
 
         <activity
-            android:name="com.nuvio.app.launcher.AppIconEmerald"
+            android:name="com.rajatsolankii.vortex.launcher.AppIconEmerald"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:enabled="false"
             android:exported="true"
@@ -130,7 +130,7 @@
         </activity>
 
         <activity
-            android:name="com.nuvio.app.launcher.AppIconRoseGold"
+            android:name="com.rajatsolankii.vortex.launcher.AppIconRoseGold"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:enabled="false"
             android:exported="true"
@@ -145,7 +145,7 @@
         </activity>
 
         <activity
-            android:name="com.nuvio.app.launcher.AppIconCopper"
+            android:name="com.rajatsolankii.vortex.launcher.AppIconCopper"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:enabled="false"
             android:exported="true"
@@ -160,7 +160,7 @@
         </activity>
 
         <activity
-            android:name="com.nuvio.app.launcher.AppIconGraphite"
+            android:name="com.rajatsolankii.vortex.launcher.AppIconGraphite"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:enabled="false"
             android:exported="true"
@@ -175,17 +175,17 @@
         </activity>
 
         <service
-            android:name="com.nuvio.app.features.player.PlayerNowPlayingService"
+            android:name="com.rajatsolankii.vortex.features.player.PlayerNowPlayingService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback"
             android:stopWithTask="false" />
 
         <receiver
-            android:name="com.nuvio.app.features.player.PlayerNowPlayingActionReceiver"
+            android:name="com.rajatsolankii.vortex.features.player.PlayerNowPlayingActionReceiver"
             android:exported="false" />
 
         <receiver
-            android:name="com.nuvio.app.features.downloads.DownloadsNotificationActionReceiver"
+            android:name="com.rajatsolankii.vortex.features.downloads.DownloadsNotificationActionReceiver"
             android:exported="false" />
 
         <provider

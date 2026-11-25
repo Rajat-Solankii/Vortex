@@ -33,11 +33,11 @@ jobs:
 
       - name: Prepare runtime properties
         env:
-          LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
+          LOCAL_PROPERTIES_BASE64: ${{ secrets.VORTEX_LOCAL_PROPERTIES_BASE64 || secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
         run: |
           if [ -n "$LOCAL_PROPERTIES_BASE64" ]; then
             printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
-            sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_STORE_FILE)[[:space:]]*=/d' local.properties
+            sed -i -E '/^[[:space:]]*(sdk\.dir|VORTEX_RELEASE_STORE_FILE|NUVIO_RELEASE_STORE_FILE)[[:space:]]*=/d' local.properties
           else
             touch local.properties
           fi

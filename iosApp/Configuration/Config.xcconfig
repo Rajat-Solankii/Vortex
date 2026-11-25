@@ -3,4 +3,4 @@
 TEAM_ID=
 
 PRODUCT_NAME=Vortex
-PRODUCT_BUNDLE_IDENTIFIER=com.vortex.app.Vortex$(TEAM_ID)
+PRODUCT_BUNDLE_IDENTIFIER=com.rajatsolankii.vortex$(TEAM_ID)

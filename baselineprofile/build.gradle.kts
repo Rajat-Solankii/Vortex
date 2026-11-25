@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nuvio.baselineprofile"
+    namespace = "com.rajatsolankii.vortex.baselineprofile"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {

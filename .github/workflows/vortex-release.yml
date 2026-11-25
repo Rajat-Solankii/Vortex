@@ -1,0 +1,225 @@
+name: Build Vortex APK (Release)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      is_release:
+        description: Format Telegram post as a named version release announcement
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vortex-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-release:
+    if: github.actor != 'dependabot[bot]'
+    name: build-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Configure signing and runtime properties
+        env:
+          LOCAL_PROPERTIES_BASE64: ${{ secrets.VORTEX_LOCAL_PROPERTIES_BASE64 || secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.VORTEX_RELEASE_KEYSTORE_BASE64 || secrets.NUVIO_RELEASE_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.VORTEX_RELEASE_STORE_PASSWORD || secrets.NUVIO_RELEASE_STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VORTEX_RELEASE_KEY_ALIAS || secrets.NUVIO_RELEASE_KEY_ALIAS || secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.VORTEX_RELEASE_KEY_PASSWORD || secrets.NUVIO_RELEASE_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          TRAKT_REDIRECT_URI: ${{ secrets.TRAKT_REDIRECT_URI }}
+          VORTEX_API_HOST: ${{ secrets.VORTEX_API_HOST }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_REDIRECT_URI: ${{ secrets.SIMKL_REDIRECT_URI }}
+          MDBLIST_CLIENT_ID: ${{ secrets.MDBLIST_CLIENT_ID }}
+          PREMIUMIZE_CLIENT_ID: ${{ secrets.PREMIUMIZE_CLIENT_ID }}
+          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
+          NUVIO_SUPABASE_FALLBACK_URL: ${{ secrets.NUVIO_SUPABASE_FALLBACK_URL }}
+          REQUIRE_SIGNING: ${{ github.event_name != 'pull_request' }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import os
+          import sys
+          from pathlib import Path
+
+          props = {}
+          raw_local_b64 = "".join(os.environ.get("LOCAL_PROPERTIES_BASE64", "").split())
+          if raw_local_b64:
+              decoded = base64.b64decode(raw_local_b64).decode("utf-8")
+              for line in decoded.splitlines():
+                  stripped = line.strip()
+                  if not stripped or stripped.startswith("#") or "=" not in stripped:
+                      continue
+                  k, v = stripped.split("=", 1)
+                  key = k.strip()
+                  if key in ("sdk.dir", "VORTEX_RELEASE_STORE_FILE", "NUVIO_RELEASE_STORE_FILE"):
+                      continue
+                  props[key] = v.strip()
+
+          keystore_b64 = "".join(os.environ.get("KEYSTORE_BASE64", "").split())
+          if keystore_b64:
+              keystore_path = Path(os.environ["RUNNER_TEMP"]) / "vortex-release.jks"
+              keystore_path.write_bytes(base64.b64decode(keystore_b64))
+              props["VORTEX_RELEASE_STORE_FILE"] = str(keystore_path)
+
+          secret_mappings = {
+              "STORE_PASSWORD": "VORTEX_RELEASE_STORE_PASSWORD",
+              "KEY_ALIAS": "VORTEX_RELEASE_KEY_ALIAS",
+              "KEY_PASSWORD": "VORTEX_RELEASE_KEY_PASSWORD",
+              "TRAKT_CLIENT_ID": "TRAKT_CLIENT_ID",
+              "TRAKT_CLIENT_SECRET": "TRAKT_CLIENT_SECRET",
+              "TRAKT_REDIRECT_URI": "TRAKT_REDIRECT_URI",
+              "VORTEX_API_HOST": "VORTEX_API_HOST",
+              "TMDB_API_KEY": "TMDB_API_KEY",
+              "SIMKL_CLIENT_ID": "SIMKL_CLIENT_ID",
+              "SIMKL_REDIRECT_URI": "SIMKL_REDIRECT_URI",
+              "MDBLIST_CLIENT_ID": "MDBLIST_CLIENT_ID",
+              "PREMIUMIZE_CLIENT_ID": "PREMIUMIZE_CLIENT_ID",
+              "NUVIO_SUPABASE_URL": "NUVIO_SUPABASE_URL",
+              "NUVIO_SUPABASE_ANON_KEY": "NUVIO_SUPABASE_ANON_KEY",
+              "NUVIO_SUPABASE_FALLBACK_URL": "NUVIO_SUPABASE_FALLBACK_URL",
+          }
+          for env_name, prop_name in secret_mappings.items():
+              val = os.environ.get(env_name, "").strip()
+              if val:
+                  props[prop_name] = val
+
+          Path("local.properties").write_text(
+              "".join(f"{k}={v}\n" for k, v in sorted(props.items())),
+              encoding="utf-8",
+          )
+
+          if os.environ.get("REQUIRE_SIGNING", "").lower() == "true":
+              required = (
+                  ("VORTEX_RELEASE_STORE_FILE", "NUVIO_RELEASE_STORE_FILE"),
+                  ("VORTEX_RELEASE_STORE_PASSWORD", "NUVIO_RELEASE_STORE_PASSWORD"),
+                  ("VORTEX_RELEASE_KEY_ALIAS", "NUVIO_RELEASE_KEY_ALIAS"),
+                  ("VORTEX_RELEASE_KEY_PASSWORD", "NUVIO_RELEASE_KEY_PASSWORD"),
+              )
+              missing = [primary for primary, legacy in required if not (props.get(primary) or props.get(legacy))]
+              if missing:
+                  print(
+                      "::error::Missing Android release signing configuration: "
+                      + ", ".join(missing)
+                      + ". Set VORTEX_RELEASE_KEYSTORE_BASE64, VORTEX_RELEASE_STORE_PASSWORD, "
+                      + "VORTEX_RELEASE_KEY_ALIAS, and VORTEX_RELEASE_KEY_PASSWORD "
+                      + "(or VORTEX_LOCAL_PROPERTIES_BASE64) in GitHub Repository Secrets.",
+                      file=sys.stderr,
+                  )
+                  sys.exit(1)
+          PY
+
+      - name: Build full release APKs
+        run: |
+          ./gradlew :androidApp:assembleFullRelease \
+            -Pvortex.android.distribution=full \
+            -Pvortex.ios.distribution=appstore \
+            -Dorg.gradle.jvmargs="-Xmx6144M -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=1536m" \
+            -Dkotlin.daemon.jvmargs="-Xmx4096M" \
+            --stacktrace
+
+      - name: Verify release APKs
+        if: github.event_name != 'pull_request'
+        run: |
+          set -e
+          BUILD_TOOLS_VERSION="$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          shopt -s nullglob
+          apks=(androidApp/build/outputs/apk/full/release/*.apk)
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "::error::No release APKs were generated." >&2
+            exit 1
+          fi
+          for apk in "${apks[@]}"; do
+            echo "Verifying $apk..."
+            "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/aapt2" dump badging "$apk" > /dev/null
+            "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify --verbose "$apk"
+          done
+
+      - name: Upload release APK artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Vortex-full-release-${{ github.sha }}
+          path: androidApp/build/outputs/apk/full/release/*.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Generate changelog and version metadata
+        id: metadata
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          PREV_SHA: ${{ github.event.before }}
+          CURR_SHA: ${{ github.sha }}
+        run: |
+          python3 .github/scripts/generate_changelog.py
+          commit_msg="$(git log -1 --pretty=%B)"
+          if [[ "${{ inputs.is_release }}" == "true" ]] || printf '%s' "$commit_msg" | grep -qi "^release:"; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Pyrofork for Telegram upload
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: python3 -m pip install --quiet pyrofork TgCrypto-pyrofork
+
+      - name: Publish APKs to Telegram channel
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+          COMMIT_SHA: ${{ github.sha }}
+          CHANGELOG_TEXT: ${{ steps.metadata.outputs.changelog_text }}
+          IS_RELEASE: ${{ steps.metadata.outputs.is_release }}
+        run: |
+          missing=()
+          [ -z "$TELEGRAM_API_ID" ] && missing+=("TELEGRAM_API_ID")
+          [ -z "$TELEGRAM_API_HASH" ] && missing+=("TELEGRAM_API_HASH")
+          [ -z "$TELEGRAM_BOT_TOKEN" ] && missing+=("TELEGRAM_BOT_TOKEN")
+          [ -z "$TELEGRAM_CHAT_ID" ] && missing+=("TELEGRAM_CHAT_ID")
+
+          if [ ${#missing[@]} -eq 4 ]; then
+            echo "::warning::Telegram secrets are not configured yet (${missing[*]}). Skipping Telegram publish."
+            exit 0
+          elif [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing Telegram secret(s): ${missing[*]}" >&2
+            exit 1
+          fi
+
+          python3 .github/scripts/publish_telegram.py

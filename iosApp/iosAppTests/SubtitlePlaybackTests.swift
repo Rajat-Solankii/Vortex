@@ -17,7 +17,7 @@ final class SubtitlePlaybackTests: XCTestCase {
         let fontDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("subtitle-fonts")
         try FileManager.default.createDirectory(at: fontDirectory, withIntermediateDirectories: true)
         let fontFile = fontDirectory.appendingPathComponent(fontId)
-        let bundledFont = Bundle.main.bundleURL.appendingPathComponent("compose-resources/composeResources/nuvio.composeapp.generated.resources/font/jetbrains_sans_regular.ttf")
+        let bundledFont = Bundle.main.bundleURL.appendingPathComponent("compose-resources/composeResources/com.rajatsolankii.vortex.generated.resources/font/jetbrains_sans_regular.ttf")
         try FileManager.default.copyItem(at: bundledFont, to: fontFile)
         settings.setPreferredSubtitleLanguage(language: "en")
         settings.setSubtitleStyle(style: makeStyle(font: "serif", radius: 16))
