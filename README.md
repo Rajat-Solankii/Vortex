@@ -76,21 +76,6 @@ Requires Android Studio / Android SDK and JDK 17+.
 # Release APKs (uses VORTEX_RELEASE_* signing config from local.properties)
 ./gradlew :androidApp:assembleFullRelease
 ```
-
-Optional API keys & signing properties can be configured in your local gitignored `local.properties` file:
-
-```properties
-VORTEX_RELEASE_STORE_FILE=path/to/keystore.jks
-VORTEX_RELEASE_STORE_PASSWORD=...
-VORTEX_RELEASE_KEY_ALIAS=...
-VORTEX_RELEASE_KEY_PASSWORD=...
-
-VORTEX_API_HOST=https://your-vortex-api-host
-TRAKT_CLIENT_ID=...
-SIMKL_CLIENT_ID=...
-MDBLIST_CLIENT_ID=...
-```
-
 ### iOS
 
 Requires macOS and Xcode:
